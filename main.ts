@@ -435,8 +435,6 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(containerEl).setName("Options").setHeading();
-
     new Setting(containerEl)
       .setName("Share selection automatically")
       .setDesc("Notify Claude as your selection changes. Turn off to share only via the \"Add selection to Claude context\" command.")
