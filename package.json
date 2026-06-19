@@ -1,6 +1,6 @@
 {
   "name": "obsidian-code-workbench",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Code Workbench — Claude Code integration for Obsidian.",
   "main": "main.js",
   "type": "module",
@@ -20,9 +20,12 @@
   "license": "LicenseRef-PolyForm-Shield-1.0.0",
   "devDependencies": {
     "@codemirror/commands": "^6.10.3",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/lint": "^6.9.7",
+    "@codemirror/view": "^6.38.6",
+    "@lezer/highlight": "^1.2.3",
     "@types/node": "^20.11.0",
     "@types/ws": "^8.5.10",
-    "builtin-modules": "^3.3.0",
     "esbuild": "^0.28.1",
     "obsidian": "^1.5.0",
     "typescript": "^5.4.5",

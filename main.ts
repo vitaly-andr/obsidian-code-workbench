@@ -323,7 +323,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       });
     };
 
-    containerEl.createEl("h2", { text: "Code Workbench" });
+    new Setting(containerEl).setName("Code Workbench").setHeading();
 
     const badges = containerEl.createDiv({ cls: "cw-badges" });
     const badge = (text: string, color: string): void => {
@@ -346,7 +346,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
 
     addShot(WORKBENCH_SHOT, "A code file open in the Code Workbench editor");
 
-    containerEl.createEl("h3", { text: "What makes it different" });
+    new Setting(containerEl).setName("What makes it different").setHeading();
     const feats = containerEl.createEl("ul");
     const feat = (lead: string, rest: string): void => {
       const li = feats.createEl("li");
@@ -387,7 +387,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       text: "A Claude edit, shown as a Keep / Reject diff.",
     });
 
-    containerEl.createEl("h3", { text: "Using it" });
+    new Setting(containerEl).setName("Using it").setHeading();
     const steps = containerEl.createEl("ol");
     [
       "Open a code file in your vault. It opens in an editable, highlighted editor.",
@@ -404,7 +404,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       text: "Running /ide in the CLI: pick Obsidian to connect.",
     });
 
-    containerEl.createEl("h3", { text: "Language support" });
+    new Setting(containerEl).setName("Language support").setHeading();
     containerEl.createEl("p", {
       cls: "setting-item-description",
       text:
@@ -426,7 +426,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       tr.createEl("td", { text: fo ? "✅" : "—" });
     }
 
-    containerEl.createEl("h3", { text: "Try it" });
+    new Setting(containerEl).setName("Try it").setHeading();
     const tryP = containerEl.createEl("p", { cls: "setting-item-description" });
     tryP.createSpan({ text: "Add the sample files to this vault, then open a language folder: " });
     tryP.createEl("code", { text: "sample-*" });
@@ -446,14 +446,9 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
           .onClick(() => {
             void this.plugin.installDemo();
           }),
-      )
-      .addButton((b) =>
-        b.setButtonText("Browse on GitHub").onClick(() => {
-          window.open("https://github.com/vitaly-andr/obsidian-code-workbench/tree/main/demo");
-        }),
       );
 
-    containerEl.createEl("h3", { text: "Settings" });
+    new Setting(containerEl).setName("Settings").setHeading();
 
     new Setting(containerEl)
       .setName("Share selection automatically")
@@ -495,7 +490,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
 
     const support = containerEl.createDiv({ cls: "cw-support" });
 
-    support.createEl("h3", { text: "Support" });
+    new Setting(support).setName("Support").setHeading();
     support.createEl("p", {
       cls: "setting-item-description",
       text:
@@ -512,7 +507,16 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
         }),
       );
 
-    support.createEl("h3", { text: "Sponsorship" });
+    new Setting(support)
+      .setName("Star on GitHub")
+      .setDesc("A star raises karma :)")
+      .addButton((b) =>
+        b.setButtonText("★ Star on GitHub").onClick(() => {
+          window.open("https://github.com/vitaly-andr/obsidian-code-workbench");
+        }),
+      );
+
+    new Setting(support).setName("Sponsorship").setHeading();
     support.createEl("p", {
       cls: "setting-item-description",
       text:

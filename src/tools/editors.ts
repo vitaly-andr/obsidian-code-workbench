@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
-import { App, TFile, WorkspaceLeaf } from "obsidian";
+import { App, TFile, View, WorkspaceLeaf } from "obsidian";
 import { IdeContext } from "../context";
 import { McpResult, wrap } from "../protocol/mcp";
 import { languageIdForPath } from "../util/languages";
@@ -38,7 +38,7 @@ function findOpenByAbsolutePath(app: App, absPath: string): OpenFileLeaf | null 
 // §7.4: list open files. Obsidian autosaves, so isDirty is effectively always false.
 export function getOpenEditors(_args: Record<string, unknown>, ctx: IdeContext): McpResult {
   const app = ctx.app;
-  const active = app.workspace.activeLeaf;
+  const active = app.workspace.getActiveViewOfType(View)?.leaf;
   const tabs = openFileLeaves(app).map(({ leaf, file, lineCount }) => {
     const abs = absoluteForVaultPath(app, file.path) ?? file.path;
     return {

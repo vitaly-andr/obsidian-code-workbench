@@ -27,7 +27,6 @@ const {
 
 // Prism nodes are loosely typed; we read fields dynamically and rely on the source-fallback for
 // anything unexpected, so `any` is the pragmatic choice here.
-/* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyNode = any;
 type Doc = PrettierDoc;
 
@@ -892,4 +891,3 @@ function exprDoc(state: RubyState, node: AnyNode): Doc {
   return verbatim(state.source.slice(startOf(node), endOf(node)));
 }
 
-/* eslint-enable @typescript-eslint/no-explicit-any */

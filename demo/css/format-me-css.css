@@ -1,5 +1,0 @@
-/* Mis-formatted on purpose. Run "Format code file" to fix it. */
-:root{--gap:12px;--accent:#0a84ff;}
-.card{display:flex;flex-direction:column;gap:var(--gap);max-width:480px;margin:0 auto;padding:1rem 1.5rem;border:1px solid #e0e0e0;}
-.card .title{font-size:1.25rem;color:var(--accent);}
-@media (max-width:600px){.card{max-width:100%;}}

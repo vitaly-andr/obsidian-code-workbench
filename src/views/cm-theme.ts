@@ -43,7 +43,6 @@ import { clojure } from "@codemirror/legacy-modes/mode/clojure";
 import { diff } from "@codemirror/legacy-modes/mode/diff";
 import { c, csharp, kotlin, scala, dart, objectiveC } from "@codemirror/legacy-modes/mode/clike";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const legacy = (mode: any): Extension => StreamLanguage.define(mode);
 
 export function languageExtension(ext: string): Extension | null {

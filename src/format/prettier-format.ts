@@ -18,7 +18,6 @@ import xmlPlugin from "@prettier/plugin-xml";
 // plugin object on the module default, so normalize with pick().
 import * as jinjaNs from "prettier-plugin-jinja-template";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const pick = (m: any): any => (m && m.default) || m;
 
 // File extension -> Prettier parser. (JSON parsers live in the babel plugin; estree is the printer.)
@@ -37,7 +36,6 @@ const PARSER: Record<string, string> = {
   j2: "jinja-template", jinja: "jinja-template", jinja2: "jinja-template",
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const PLUGINS: any[] = [
   babel, estree, typescript, postcss, htmlPlugin, yamlPlugin, xmlPlugin,
   pick(jinjaNs),

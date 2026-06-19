@@ -7,7 +7,6 @@
 import { format } from "prettier/standalone";
 import { WASI, OpenFile, File as WasiFile, ConsoleStdout } from "@bjorn3/browser_wasi_shim";
 import prismWasm from "@ruby/prism/src/prism.wasm";
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 import { parsePrism } from "@ruby/prism/src/parsePrism.js";
 import { makeRubyPlugin, type PrismParseResult } from "./ruby-printer";
 import { warn } from "../util/log";
@@ -27,7 +26,6 @@ async function initPrism(): Promise<void> {
   });
   (wasi as unknown as { initialize(i: WebAssembly.Instance): void }).initialize(instance);
   const exports = instance.exports;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parseFn = (src: string) => parsePrism(exports as any, src, {}) as PrismParseResult;
 }
 

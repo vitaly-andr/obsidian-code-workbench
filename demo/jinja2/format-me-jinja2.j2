@@ -1,6 +1,0 @@
-{# Mis-formatted on purpose. Run "Format code file". #}
-server {
-listen {{ http_port|default(80) }};
-server_name {{domain}};
-{% for path in static_paths %}location {{ path }} { root {{web_root}}; }{% endfor %}
-}

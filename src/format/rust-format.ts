@@ -7,7 +7,6 @@
 import { format as formatV2 } from "prettier-v2/standalone";
 import * as rustPluginNs from "prettier-plugin-rust";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rustPlugin: any = (rustPluginNs as any).default ?? rustPluginNs;
 
 export function formatRust(text: string, ext: string): string | null {

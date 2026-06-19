@@ -7,7 +7,7 @@ import { EditorView, highlightActiveLine, keymap, lineNumbers } from "@codemirro
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { SelectionPayload } from "../context";
 import { SelectionProvider } from "../tools/selection";
-import { extensionOf, grammarKeyForPath } from "../util/languages";
+import { grammarKeyForPath } from "../util/languages";
 import { absoluteForVaultPath, toFileUri } from "../util/paths";
 import { CODE_VIEW_TYPE } from "./view-types";
 import { languageExtension, obsidianEditorTheme, obsidianHighlighting } from "./cm-theme";

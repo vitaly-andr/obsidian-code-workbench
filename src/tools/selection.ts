@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
-import { App, MarkdownView } from "obsidian";
+import { App, MarkdownView, View } from "obsidian";
 import { IdeContext, SelectionPayload, SelectionRange } from "../context";
 import { McpResult, wrap } from "../protocol/mcp";
 import { absoluteForVaultPath, toFileUri } from "../util/paths";
@@ -27,7 +27,7 @@ function fromMarkdown(app: App): SelectionPayload | null {
 }
 
 function fromActiveCodeView(app: App): SelectionPayload | null {
-  const view = app.workspace.activeLeaf?.view as Partial<SelectionProvider> | undefined;
+  const view = app.workspace.getActiveViewOfType(View) as Partial<SelectionProvider> | null;
   if (view && typeof view.getSelectionPayload === "function") {
     return view.getSelectionPayload();
   }

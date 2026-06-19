@@ -37,7 +37,7 @@ function spawnDetached(bin: string, argv: string[], cwd?: string): Promise<boole
       const child = spawn(bin, argv, { cwd, detached: true, stdio: "ignore" });
       child.on("error", () => finish(false));
       child.unref();
-      setTimeout(() => finish(true), 400);
+      window.setTimeout(() => finish(true), 400);
     } catch {
       finish(false);
     }

@@ -1,6 +1,0 @@
-<?xml version="1.0"?>
-<!-- error: the <user> element is never closed with </user> -->
-<users>
-  <user id="1">
-    <name>Ada</name>
-</users>

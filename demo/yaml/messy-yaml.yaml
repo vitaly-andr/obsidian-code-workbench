@@ -1,4 +1,0 @@
-# error: the flow sequence [ is never closed with ]
-name: lang-tests
-roles: [admin, editor, viewer
-port: 8080

@@ -1,2 +1,0 @@
-<%# error: the <% tag is never closed with %> #%>
-<% for i, item in ipairs(items) do

@@ -1,6 +1,0 @@
-{
-  "name": "lang-tests",
-  "version": "1.4.0",
-  "roles": ["admin", "editor",],
-  "port": 8080
-}

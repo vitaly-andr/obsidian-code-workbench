@@ -1,9 +1,0 @@
-# Mis-formatted on purpose. Run "Format code file".
-name:    lang-tests
-version:   1.4.0
-enabled: true
-server: {host: 127.0.0.1,port: 8080,tls: false}
-roles: [admin,  editor,viewer]
-limits:
-     retries: 3
-     timeout: 5.5

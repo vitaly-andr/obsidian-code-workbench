@@ -16,7 +16,7 @@ export class IdeServer {
   private wss: WebSocketServer | null = null;
   private httpServer: http.Server | null = null;
   private port = 0;
-  private heartbeat: ReturnType<typeof setInterval> | null = null;
+  private heartbeat: number | null = null;
   // Notified with the live client count on connect/disconnect (for the status bar).
   onClientChange: ((count: number) => void) | null = null;
 
@@ -81,7 +81,7 @@ export class IdeServer {
         this.httpServer = httpServer;
         this.wss = wss;
         // Reap silently-dead clients: ping every 30s, terminate any that missed the prior pong.
-        this.heartbeat = setInterval(() => this.pingClients(), 30000);
+        this.heartbeat = window.setInterval(() => this.pingClients(), 30000);
         info(`listening on 127.0.0.1:${this.port}`);
         resolve(this.port);
       });
@@ -127,7 +127,7 @@ export class IdeServer {
 
   async stop(): Promise<void> {
     if (this.heartbeat) {
-      clearInterval(this.heartbeat);
+      window.clearInterval(this.heartbeat);
       this.heartbeat = null;
     }
     for (const client of this.wss?.clients ?? []) {

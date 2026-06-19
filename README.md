@@ -123,12 +123,6 @@ language folder:
 - `messy-*` shows error diagnostics (a red underline at the spot marked in a comment).
 - `format-me-*` shows formatting: run **Format code file** and watch the layout fix itself.
 
-Prefer git? Clone the repo and open its `demo/` folder as a vault instead:
-
-```sh
-git clone https://github.com/vitaly-andr/obsidian-code-workbench
-```
-
 ## Install
 
 ### BRAT (until it's in the Community store)
