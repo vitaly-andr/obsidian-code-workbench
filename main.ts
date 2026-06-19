@@ -534,15 +534,15 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
         }),
       );
 
-    const qr = support.createDiv({ attr: { style: "text-align:center;margin-top:8px;" } });
+    const qr = support.createDiv({ cls: "cw-qr" });
     const link = qr.createEl("a", { href: "https://t.me/VITALY_ANDR" });
     link.createEl("img", {
-      attr: { src: TELEGRAM_QR, width: "150", alt: "Telegram @VITALY_ANDR", style: "border-radius:8px;" },
+      cls: "cw-qr-img",
+      attr: { src: TELEGRAM_QR, alt: "Telegram @VITALY_ANDR" },
     });
 
     containerEl.createEl("p", {
-      cls: "setting-item-description",
-      attr: { style: "margin-top:12px;" },
+      cls: "setting-item-description cw-license",
       text:
         "Source-available under the PolyForm Shield License 1.0.0: free to use, study, and modify, " +
         "but not to build a competing product.",

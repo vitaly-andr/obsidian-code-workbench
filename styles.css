@@ -77,14 +77,16 @@
   border-radius: 8px;
   border: 1px solid var(--background-modifier-border);
 }
-.cw-cmd {
-  margin: 8px 0;
-  padding: 8px 10px;
-  font-size: 12px;
-  background: var(--background-primary-alt);
-  border-radius: 6px;
-  overflow-x: auto;
-  white-space: pre;
+.cw-qr {
+  text-align: center;
+  margin-top: 8px;
+}
+.cw-qr-img {
+  width: 150px;
+  border-radius: 8px;
+}
+.cw-license {
+  margin-top: 12px;
 }
 .cw-badges {
   display: flex;
