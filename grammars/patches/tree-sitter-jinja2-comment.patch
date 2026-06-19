@@ -1,0 +1,29 @@
+Add a `comment` rule to lmderval/tree-sitter-jinja2.
+
+The grammar's `text` token already excludes "{#" (so comment text never merges into
+plain text), but no `comment` node was defined, so `{# ... #}` failed to parse. This
+adds the node and lists it in `body`. Apply against commit 683c7d76, then run
+`tree-sitter generate` and `tree-sitter build --wasm`.
+
+diff --git a/grammar.js b/grammar.js
+index 51c4f11..cf056be 100644
+--- a/grammar.js
++++ b/grammar.js
+@@ -45,12 +45,17 @@ module.exports = grammar({
+
+     body: $ => choice(
+       $.text,
++      $.comment,
+       $.control,
+       $.expression
+     ),
+
+     text: $ => token(/([^{]|\{[^{#%])+/),
+
++    // Jinja comment {# ... #}. The grammar already excludes "{#" from `text`, but never defined the
++    // node, so comments errored. Match the body as any run that doesn't form the "#}" terminator.
++    comment: $ => token(seq('{#', /[^#]*(#[^}][^#]*)*/, '#}')),
++
+     identifier: $ => token(/[a-zA-Z_][a-zA-Z_0-9]*/),
+
+     exp_bool: $ => choice(

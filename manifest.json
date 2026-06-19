@@ -1,0 +1,10 @@
+{
+  "id": "code-workbench",
+  "name": "Code Workbench",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Turn your vault into an IDE for the Claude Code CLI: shared editing context, file navigation, an in-app accept/reject diff, and an editable syntax-highlighted view for code files.",
+  "author": "Vitaly Andrianov",
+  "fundingUrl": "https://github.com/vitaly-andr/obsidian-code-workbench/blob/main/SUPPORT.md",
+  "isDesktopOnly": true
+}

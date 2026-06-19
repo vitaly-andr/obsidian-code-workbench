@@ -1,0 +1,15 @@
+# Node / build (TypeScript Obsidian plugin)
+node_modules/
+dist/
+build/
+main.js
+*.js.map
+
+# Obsidian plugin local test vault
+test-vault/
+
+# Editor / agent local state (may hold credentials)
+.claude/settings.local.json
+
+# OS
+.DS_Store

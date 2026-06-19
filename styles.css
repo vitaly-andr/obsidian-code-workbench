@@ -1,0 +1,41 @@
+.code-workbench-diff {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.code-workbench-diff-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.code-workbench-diff-bar span {
+  flex: 1;
+  font-weight: var(--font-weight-medium, 600);
+}
+
+.code-workbench-diff-merge {
+  flex: 1;
+  overflow: auto;
+}
+
+.code-workbench-diff-merge .cm-mergeView,
+.code-workbench-diff-merge .cm-editor {
+  height: 100%;
+}
+
+/* tree-sitter highlighting: capture classes mapped to Obsidian's --code-* theme variables, so the
+   tree-sitter path matches the active theme exactly like the Lezer HighlightStyle does. */
+.cm-ts-keyword { color: var(--code-keyword); }
+.cm-ts-string { color: var(--code-string); }
+.cm-ts-value { color: var(--code-value); }
+.cm-ts-comment { color: var(--code-comment); font-style: italic; }
+.cm-ts-function { color: var(--code-function); }
+.cm-ts-type { color: var(--code-tag); }
+.cm-ts-property { color: var(--code-property); }
+.cm-ts-operator { color: var(--code-operator); }
+.cm-ts-punctuation { color: var(--code-punctuation); }
+.cm-ts-variable { color: var(--code-normal, var(--text-normal)); }
