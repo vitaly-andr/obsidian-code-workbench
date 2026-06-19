@@ -165,17 +165,11 @@ export default class CodeWorkbenchPlugin extends Plugin {
     }
   }
 
-  async onunload(): Promise<void> {
-    try {
-      await this.lock?.remove();
-    } catch (e) {
-      warn("lock removal failed", e);
-    }
-    try {
-      await this.server?.stop();
-    } catch (e) {
-      warn("server stop failed", e);
-    }
+  onunload(): void {
+    // Fire-and-forget cleanup: Obsidian does not await onunload, and the lock/server teardown
+    // is best-effort.
+    void this.lock?.remove().catch((e) => warn("lock removal failed", e));
+    void this.server?.stop().catch((e) => warn("server stop failed", e));
     this.ctx?.diffs.closeAll();
     this.lock = null;
     this.server = null;
@@ -209,13 +203,8 @@ export default class CodeWorkbenchPlugin extends Plugin {
     const ok = await launchClaude(base);
     if (ok) {
       new Notice("Code Workbench: launching Claude…");
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(`cd ${JSON.stringify(base)} && claude`);
-      new Notice("Code Workbench: no terminal found — command copied to clipboard");
-    } catch {
-      new Notice("Code Workbench: no terminal found. Run \"claude\" in the vault folder.");
+    } else {
+      new Notice(`Code Workbench: couldn't open a terminal. Run "claude" in ${base}`);
     }
   }
 
@@ -322,8 +311,6 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
         attr: { src, alt },
       });
     };
-
-    new Setting(containerEl).setName("Code Workbench").setHeading();
 
     const badges = containerEl.createDiv({ cls: "cw-badges" });
     const badge = (text: string, color: string): void => {
@@ -448,7 +435,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(containerEl).setName("Settings").setHeading();
+    new Setting(containerEl).setName("Options").setHeading();
 
     new Setting(containerEl)
       .setName("Share selection automatically")
@@ -509,7 +496,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
 
     new Setting(support)
       .setName("Star on GitHub")
-      .setDesc("A star raises karma :)")
+      .setDesc("A star improves karma :)")
       .addButton((b) =>
         b.setButtonText("★ Star on GitHub").onClick(() => {
           window.open("https://github.com/vitaly-andr/obsidian-code-workbench");

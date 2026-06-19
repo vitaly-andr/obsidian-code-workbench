@@ -196,7 +196,7 @@ export function makeRubyPlugin(parse: (src: string) => PrismParseResult): Plugin
               return { start, end, text: text.slice(start, end) };
             })
             .sort((a: any, b: any) => a.start - b.start);
-          (root as any).__rubyState = { source: text, comments } as RubyState;
+          (root as any).__rubyState = { source: text, comments };
           return root;
         },
         astFormat: AST_FORMAT,
@@ -216,7 +216,7 @@ function getState(path: any, options: any): RubyState {
   // Walk up to the root node which carries __rubyState.
   const stack: AnyNode[] = path.stack ? path.stack.filter((x: any) => x && x.constructor) : [];
   for (const n of stack) {
-    if (n && (n as any).__rubyState) return (n as any).__rubyState as RubyState;
+    if (n && n.__rubyState) return n.__rubyState as RubyState;
   }
   const root = path.stack && path.stack[0];
   if (root && root.__rubyState) return root.__rubyState as RubyState;

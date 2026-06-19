@@ -7,7 +7,7 @@
 import { format as formatV2 } from "prettier-v2/standalone";
 import * as rustPluginNs from "prettier-plugin-rust";
 
-const rustPlugin: any = (rustPluginNs as any).default ?? rustPluginNs;
+const rustPlugin: any = rustPluginNs.default ?? rustPluginNs;
 
 export function formatRust(text: string, ext: string): string | null {
   if (ext !== "rs") return null;
