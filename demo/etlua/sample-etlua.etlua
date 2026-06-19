@@ -1,0 +1,9 @@
+<%# Lua template (lapis/etlua) %>
+<ul>
+  <% for i, item in ipairs(items) do %>
+    <li class="<%= item.active and 'on' or 'off' %>"><%= i %>: <%= item.name %></li>
+  <% end %>
+</ul>
+<% if #items == 0 then %>
+  <p>Empty list.</p>
+<% end %>

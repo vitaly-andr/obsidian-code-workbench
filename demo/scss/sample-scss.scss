@@ -1,0 +1,23 @@
+// Card styles (SCSS)
+$gap: 12px;
+$accent: #0a84ff;
+
+@mixin card-base($pad) {
+  display: flex;
+  padding: $pad;
+}
+
+.card {
+  @include card-base(1rem);
+  gap: $gap;
+  max-width: 480px;
+
+  .title {
+    color: $accent;
+    font-size: 1.25rem;
+  }
+
+  &:hover {
+    border-color: darken($accent, 10%);
+  }
+}

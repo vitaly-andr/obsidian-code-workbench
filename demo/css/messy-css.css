@@ -1,0 +1,9 @@
+/* error: the .card rule is missing its closing brace } */
+.card {
+  display: flex;
+  gap: 12px;
+  color: #0a84ff;
+
+.title {
+  font-size: 1.25rem;
+}

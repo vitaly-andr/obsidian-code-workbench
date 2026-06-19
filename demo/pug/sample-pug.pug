@@ -1,0 +1,14 @@
+//- Landing page
+doctype html
+html(lang="en")
+  head
+    title= pageTitle
+  body
+    h1.title Welcome
+    nav
+      each item in menu
+        a(href=item.url)= item.label
+    if loggedIn
+      p Hello, #{user.name}
+    else
+      a(href="/login") Sign in

@@ -1,0 +1,13 @@
+/ Article view
+article.post
+  h1= @article.title
+  .meta
+    span.author= @article.author
+    span.date= @article.published_at.strftime("%Y-%m-%d")
+  - if @article.published?
+    .body= @article.body
+  - else
+    p.draft (draft)
+  ul.tags
+    - @article.tags.each do |tag|
+      li= tag

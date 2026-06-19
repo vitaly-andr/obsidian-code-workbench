@@ -1,0 +1,24 @@
+<%# User roles demo (ERB) %>
+<% greeting = "Hello" %>
+<% users = [
+     { name: "Ada", roles: ["admin", "editor"] },
+     { name: "Bob", roles: ["viewer"] }
+   ] %>
+
+<!DOCTYPE html>
+<html lang="en">
+  <body>
+    <h1><%= greeting %>, there are <%= users.size %> users</h1>
+    <ul>
+      <% users.each do |user| %>
+        <li>
+          <strong><%= user[:name] %></strong>
+          (<%= user[:roles].join(", ") %>)
+          <% if user[:roles].include?("admin") %>
+            <span class="badge">admin</span>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  </body>
+</html>

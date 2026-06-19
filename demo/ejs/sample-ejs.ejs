@@ -1,0 +1,11 @@
+<%# Product list %>
+<ul class="products">
+  <% products.forEach(function (p) { %>
+    <li class="<%= p.inStock ? 'in' : 'out' %>">
+      <strong><%= p.name %></strong> — $<%= p.price.toFixed(2) %>
+    </li>
+  <% }); %>
+</ul>
+<% if (products.length === 0) { %>
+  <p>No products available.</p>
+<% } %>

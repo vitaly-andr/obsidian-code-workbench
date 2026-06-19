@@ -1,0 +1,20 @@
+{%- comment -%} Sample Liquid: tags, filters, loops {%- endcomment -%}
+{% assign greeting = "Hello" %}
+{% assign products = "alpha,beta,stable" | split: "," %}
+
+<h1>{{ greeting | capitalize }}, {{ products.size }} products</h1>
+
+<ul>
+  {% for product in products %}
+    <li class="item-{{ forloop.index }}">
+      {{ product | upcase }}
+      {% if forloop.first %}<span class="badge">new</span>{% endif %}
+    </li>
+  {% endfor %}
+</ul>
+
+{% assign total = 1999 | divided_by: 100.0 %}
+<p>Price: {{ total | round: 2 }}</p>
+{% unless products contains "gamma" %}
+  <p>No gamma in stock.</p>
+{% endunless %}

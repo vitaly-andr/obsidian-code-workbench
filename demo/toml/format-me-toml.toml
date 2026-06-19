@@ -1,0 +1,11 @@
+# Mis-formatted on purpose. Run "Format code file".
+name="lang-tests"
+version   =   "1.4.0"
+enabled=true
+[server]
+host="127.0.0.1"
+port=8080
+tls=false
+[[users]]
+name="Ada"
+roles=["admin","editor"]

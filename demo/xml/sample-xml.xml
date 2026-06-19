@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<users count="2">
+  <!-- application users -->
+  <user id="1" role="admin">
+    <name>Ada</name>
+    <email>ada@example.com</email>
+  </user>
+  <user id="2" role="viewer">
+    <name>Bob</name>
+    <email>bob@example.com</email>
+  </user>
+</users>

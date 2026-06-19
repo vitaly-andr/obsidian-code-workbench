@@ -1,0 +1,10 @@
+---
+// Mis-formatted on purpose. Run "Format code file".
+interface Props{title:string;}
+const {title}=Astro.props;const greeting="Hello";const roles=["admin","editor","viewer"];
+const isAdmin=roles.includes("admin");
+---
+<section class="card"><h1>{greeting}, {title}</h1><p>{roles.length} roles</p>
+{isAdmin && <span class="badge">Admin</span>}
+<ul>{roles.map((role)=>(<li class="tag">{role}</li>))}</ul></section>
+<style>.card{max-width:480px;margin:0 auto;}.tag{color:#0a84ff;}</style>

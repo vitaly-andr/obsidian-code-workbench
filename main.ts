@@ -206,11 +206,11 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Enable tree-sitter (experimental)")
+      .setName("Enable syntax highlighting")
       .setDesc(
-        "Richer highlighting and syntax-error underlines for many more languages, via tree-sitter. " +
-          "Each language's grammar (~0.5–2 MB) downloads once on first use and is cached — the internet " +
-          "is only needed that first time. Off keeps the built-in highlighter.",
+        "Richer highlighting and syntax-error underlines for ~50 languages. Each language downloads a " +
+          "small grammar (~0.5–2 MB) once on first use, cached after — the internet is only needed that " +
+          "first time. Off keeps the simple highlighter.",
       )
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.treeSitter).onChange(async (value) => {

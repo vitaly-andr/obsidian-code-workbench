@@ -1,0 +1,15 @@
+{# Product card template #}
+<div class="card">
+  <h2>{{ product.name|upper }}</h2>
+  <p class="price">{{ product.price|number_format(2, '.', ',') }} €</p>
+  {% if product.inStock %}
+    <span class="badge">In stock</span>
+  {% else %}
+    <span class="badge sold">Sold out</span>
+  {% endif %}
+  <ul>
+    {% for tag in product.tags %}
+      <li>{{ loop.index }}. {{ tag }}</li>
+    {% endfor %}
+  </ul>
+</div>
