@@ -152,8 +152,12 @@ or go-to-definition (code understanding stays with Claude). It depends on no oth
 
 ## Support & sponsorship
 
-Code Workbench is free. If it saves you time, a [tip](SUPPORT.md) is welcome (crypto) — never
-required. Interested in sponsoring development, or a logo in this section? Open an issue.
+Code Workbench is free. If it saves you time, a [tip](SUPPORT.md) is welcome (crypto) — never required.
+
+**Contact & sponsorship** — message me on Telegram: [@VITALY_ANDR](https://t.me/VITALY_ANDR). Want to
+sponsor development or place a logo in this section? Get in touch.
+
+<a href="https://t.me/VITALY_ANDR"><img src="docs/telegram-qr.png" width="180" alt="Telegram @VITALY_ANDR"></a>
 
 ## License
 

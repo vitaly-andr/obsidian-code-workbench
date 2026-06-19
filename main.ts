@@ -229,5 +229,14 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
           window.open("https://github.com/vitaly-andr/obsidian-code-workbench/blob/main/SUPPORT.md");
         }),
       );
+
+    new Setting(containerEl)
+      .setName("Contact")
+      .setDesc("Questions, feedback, or sponsorship? Message me on Telegram.")
+      .addButton((b) =>
+        b.setButtonText("Telegram @VITALY_ANDR").onClick(() => {
+          window.open("https://t.me/VITALY_ANDR");
+        }),
+      );
   }
 }

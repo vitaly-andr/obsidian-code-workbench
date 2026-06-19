@@ -3,7 +3,13 @@
 Code Workbench for Obsidian is free. If it saves you time, a tip
 is welcome — never required.
 
-Crypto only:
+## Contact & sponsorship
+
+Questions, feedback, or sponsorship — message me on Telegram: [@VITALY_ANDR](https://t.me/VITALY_ANDR)
+
+<img src="docs/telegram-qr.png" width="200" alt="Telegram @VITALY_ANDR">
+
+## Tips (crypto)
 
 **EVM — USDT / USDC / ETH** (send on Polygon, Base, BSC, or Arbitrum for low fees)
 
