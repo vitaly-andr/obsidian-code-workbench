@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Boots the web-tree-sitter engine once, from the runtime wasm embedded in the plugin bundle
 // (esbuild's binary loader, see esbuild.config.mjs). The engine never touches the network; only
 // per-language grammars are fetched on demand (see the loader/registry). init is idempotent.

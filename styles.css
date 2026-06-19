@@ -1,3 +1,9 @@
+/*
+ * Code Workbench for Obsidian
+ * Copyright 2026 Vitaly Andrianov
+ * SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+ * Licensed under PolyForm Shield 1.0.0. See LICENSE.
+ */
 .code-workbench-diff {
   display: flex;
   flex-direction: column;
@@ -39,3 +45,96 @@
 .cm-ts-operator { color: var(--code-operator); }
 .cm-ts-punctuation { color: var(--code-punctuation); }
 .cm-ts-variable { color: var(--code-normal, var(--text-normal)); }
+
+/* Settings tab: promo layout + the language-coverage table. */
+.cw-settings h3 {
+  margin: 1.4em 0 0.4em;
+  font-size: var(--font-ui-large);
+}
+/* Larger, more readable promo copy than Obsidian's default tiny description text. */
+.cw-settings > .setting-item-description,
+.cw-support .setting-item-description,
+.cw-settings ul,
+.cw-settings ol {
+  font-size: var(--font-ui-medium);
+  line-height: 1.5;
+}
+/* Highlight the support + sponsorship block with an accent card. */
+.cw-support {
+  margin-top: 18px;
+  padding: 2px 16px 14px;
+  border: 2px solid var(--interactive-accent);
+  border-radius: 10px;
+  background: var(--background-secondary);
+}
+.cw-support h3:first-of-type {
+  margin-top: 0.8em;
+}
+.cw-shot {
+  width: 100%;
+  display: block;
+  margin: 12px 0;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+}
+.cw-cmd {
+  margin: 8px 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  background: var(--background-primary-alt);
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: pre;
+}
+.cw-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+.cw-badge {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  padding: 1px 8px;
+  border-radius: 10px;
+  color: #fff;
+}
+.cw-badge-green { background: #3fb950; }
+.cw-badge-blue { background: #1f6feb; }
+.cw-badge-grey { background: #6e7681; }
+.cw-settings ul,
+.cw-settings ol {
+  margin: 0.2em 0 0.6em;
+  padding-left: 1.4em;
+}
+.cw-settings li {
+  margin: 0.25em 0;
+}
+.cw-lang-table-wrap {
+  max-height: 300px;
+  overflow: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
+.cw-lang-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.cw-lang-table th,
+.cw-lang-table td {
+  padding: 2px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  text-align: left;
+}
+.cw-lang-table th {
+  position: sticky;
+  top: 0;
+  background: var(--background-secondary);
+}
+.cw-lang-table th:not(:first-child),
+.cw-lang-table td:not(:first-child) {
+  text-align: center;
+  white-space: nowrap;
+}

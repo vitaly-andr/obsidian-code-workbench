@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Syntax-error diagnostics from the active Lezer parse tree (the @codemirror/lang-* grammars).
 // No language server, no WASM: Lezer is error-tolerant, so its error nodes give syntax-error
 // underlines for every bundled lang-* language. Legacy StreamLanguage modes produce no error

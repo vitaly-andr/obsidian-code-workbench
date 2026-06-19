@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Ruby printer for Prettier v3. The parser (@ruby/prism) is injected via `makeRubyPlugin(parse)`;
 // this file is the printer (AST -> formatted code) plus the thin plugin wiring.
 //

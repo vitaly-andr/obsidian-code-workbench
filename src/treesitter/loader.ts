@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Lazily downloads, caches, and loads tree-sitter grammars. On first use of a language the grammar
 // .wasm (and its highlights query) are fetched via Obsidian's requestUrl (no CORS) and written to
 // the plugin's data folder; subsequent opens read the cache and need no network. Each grammar id is

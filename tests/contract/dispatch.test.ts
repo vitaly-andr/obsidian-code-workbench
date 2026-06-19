@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 import { describe, it, expect } from "vitest";
 import { Dispatcher } from "../../src/protocol/jsonrpc";
 import { CancelledError } from "../../src/protocol/errors";

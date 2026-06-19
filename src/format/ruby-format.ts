@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Ruby formatting: @ruby/prism parses Ruby to an AST, a custom Prettier v3 printer formats it
 // (see ruby-printer.ts). Prism is a WASI module; we load it with a pure-JS WASI shim (not node:wasi)
 // and embed prism.wasm (~0.5MB) in the bundle, so it runs in Obsidian's renderer with no fetch.

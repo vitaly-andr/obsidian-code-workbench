@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { promises as fs } from "fs";
 import * as os from "os";

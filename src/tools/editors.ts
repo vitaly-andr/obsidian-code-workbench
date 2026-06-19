@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 import { App, TFile, WorkspaceLeaf } from "obsidian";
 import { IdeContext } from "../context";
 import { McpResult, wrap } from "../protocol/mcp";

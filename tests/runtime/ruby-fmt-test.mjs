@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Test harness for the Ruby Prettier printer (src/format/ruby-printer.ts).
 // Loads @ruby/prism via the WASI shim, injects the parse fn into makeRubyPlugin, then formats a
 // set of representative snippets and asserts: (1) the output re-parses with zero errors, and

@@ -1,4 +1,7 @@
-import { App, Notice, Plugin, PluginSettingTab, Setting } from "obsidian";
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
+import { App, Notice, Plugin, PluginSettingTab, Setting, TFile } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import { randomUUID } from "crypto";
 import { IdeContext } from "./src/context";
@@ -7,6 +10,9 @@ import { LockFile } from "./src/server/lockfile";
 import { IdeServer } from "./src/server/websocket-server";
 import { activeSelection } from "./src/tools/selection";
 import { error, info, warn } from "./src/util/log";
+import { CONNECT_SHOT, DIFF_SHOT, TELEGRAM_QR, WORKBENCH_SHOT } from "./src/util/qr";
+import { launchClaude } from "./src/util/launch";
+import { DEMO_FILES } from "./src/util/demo-files";
 import { CODE_VIEW_EXTENSIONS, CodeView } from "./src/views/code-view";
 import { GrammarLoader } from "./src/treesitter/loader";
 import { FormatService } from "./src/format/format-service";
@@ -46,6 +52,8 @@ export default class CodeWorkbenchPlugin extends Plugin {
     this.ctx = ctx;
 
     this.statusEl = this.addStatusBarItem();
+    this.statusEl.addClass("mod-clickable");
+    this.registerDomEvent(this.statusEl, "click", () => void this.runClaude());
     this.refreshStatus();
     this.addSettingTab(new CodeWorkbenchSettingTab(this.app, this));
 
@@ -181,10 +189,122 @@ export default class CodeWorkbenchPlugin extends Plugin {
 
   private refreshStatus(): void {
     if (!this.statusEl) return;
-    this.statusEl.setText(this.connected ? "Claude ●" : "Claude ○");
-    this.statusEl.setAttr("aria-label", `Code Workbench — ${this.statusText()}`);
+    this.statusEl.setText(this.connected ? "Claude ●" : "▶ Launch Claude");
+    this.statusEl.setAttr(
+      "aria-label",
+      this.connected
+        ? `Code Workbench — ${this.statusText()}`
+        : "Code Workbench — click to run Claude in this vault",
+    );
+  }
+
+  // Open a terminal in the vault folder and start the Claude Code CLI. Falls back to copying the
+  // command if no terminal could be launched.
+  async runClaude(): Promise<void> {
+    const base = vaultBasePath(this.app);
+    if (!base) {
+      new Notice("Code Workbench: couldn't resolve the vault folder");
+      return;
+    }
+    const ok = await launchClaude(base);
+    if (ok) {
+      new Notice("Code Workbench: launching Claude…");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(`cd ${JSON.stringify(base)} && claude`);
+      new Notice("Code Workbench: no terminal found — command copied to clipboard");
+    } catch {
+      new Notice("Code Workbench: no terminal found. Run \"claude\" in the vault folder.");
+    }
+  }
+
+  // Write the bundled sample files into a folder in the current vault and open one of them.
+  async installDemo(): Promise<void> {
+    const root = "Code Workbench demo";
+    const { vault } = this.app;
+    const ensureFolder = async (dir: string): Promise<void> => {
+      let cur = "";
+      for (const part of dir.split("/")) {
+        cur = cur ? `${cur}/${part}` : part;
+        if (!vault.getAbstractFileByPath(cur)) await vault.createFolder(cur);
+      }
+    };
+    try {
+      let count = 0;
+      for (const [rel, content] of Object.entries(DEMO_FILES)) {
+        const full = `${root}/${rel}`;
+        await ensureFolder(full.slice(0, full.lastIndexOf("/")));
+        const existing = vault.getAbstractFileByPath(full);
+        if (existing instanceof TFile) await vault.modify(existing, content);
+        else await vault.create(full, content);
+        count++;
+      }
+      new Notice(`Code Workbench: added ${count} demo files to "${root}"`);
+      const sample = vault.getAbstractFileByPath(`${root}/rust/sample-rust.rs`);
+      if (sample instanceof TFile) await this.app.workspace.getLeaf(true).openFile(sample);
+    } catch (e) {
+      error("demo install failed", e);
+      new Notice("Code Workbench: couldn't add demo files");
+    }
   }
 }
+
+// Language coverage shown on the settings page: [name, highlighting, diagnostics, formatting].
+const LANGS: ReadonlyArray<readonly [string, boolean, boolean, boolean]> = [
+  ["Astro", true, true, true],
+  ["Blade", true, true, false],
+  ["C", true, true, true],
+  ["C#", true, true, false],
+  ["C++", true, true, true],
+  ["Clojure", true, true, false],
+  ["CSS", true, true, true],
+  ["Dart", true, true, true],
+  ["Diff", true, false, false],
+  ["EJS", true, true, false],
+  ["Elixir", true, true, false],
+  ["ERB", true, true, false],
+  ["ETLua", true, true, false],
+  ["Gherkin", true, true, false],
+  ["Go", true, true, true],
+  ["Haml", true, true, false],
+  ["Handlebars", true, true, false],
+  ["Haskell", true, true, false],
+  ["HTML", true, true, true],
+  ["INI", true, true, false],
+  ["Java", true, true, true],
+  ["JavaScript", true, true, true],
+  ["Jinja2", true, true, true],
+  ["JSON", true, true, true],
+  ["Julia", true, true, false],
+  ["Kotlin", true, true, false],
+  ["Less", true, false, true],
+  ["Liquid", true, true, false],
+  ["Lua", true, true, true],
+  ["Objective-C", true, true, true],
+  ["Perl", true, true, false],
+  ["PHP", true, true, true],
+  ["Pug", true, true, false],
+  ["Python", true, true, true],
+  ["R", true, true, false],
+  ["Ruby", true, true, true],
+  ["Rust", true, true, true],
+  ["Scala", true, true, false],
+  ["SCSS", true, false, true],
+  ["Shell", true, true, true],
+  ["Slim", true, true, false],
+  ["SQL", true, true, true],
+  ["Svelte", true, true, true],
+  ["Swift", true, true, false],
+  ["TOML", true, true, true],
+  ["Twig", true, true, false],
+  ["TypeScript", true, true, true],
+  ["Vue", true, true, true],
+  ["WebAssembly (WAT)", true, false, false],
+  ["XML", true, true, true],
+  ["YAML", true, true, true],
+  ["Zig", true, true, true],
+];
 
 class CodeWorkbenchSettingTab extends PluginSettingTab {
   constructor(app: App, private readonly plugin: CodeWorkbenchPlugin) {
@@ -194,6 +314,146 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
+    containerEl.addClass("cw-settings");
+
+    const addShot = (src: string, alt: string): void => {
+      containerEl.createEl("img", {
+        cls: "cw-shot",
+        attr: { src, alt },
+      });
+    };
+
+    containerEl.createEl("h2", { text: "Code Workbench" });
+
+    const badges = containerEl.createDiv({ cls: "cw-badges" });
+    const badge = (text: string, color: string): void => {
+      badges.createSpan({ cls: `cw-badge cw-badge-${color}`, text });
+    };
+    badge(`v${this.plugin.manifest.version}`, "green");
+    badge("PolyForm Shield 1.0.0", "blue");
+    badge("Desktop only", "grey");
+
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text:
+        "Obsidian only opens Markdown. Code Workbench adds an editor for code files: syntax " +
+        "highlighting, error diagnostics, and one-command formatting for 50+ languages, plus a " +
+        "Keep/Reject diff for Claude Code's edits.",
+    });
+    containerEl
+      .createEl("p", { cls: "setting-item-description" })
+      .createEl("em", { text: "Other Claude plugins give you a chat. This gives you an editor." });
+
+    addShot(WORKBENCH_SHOT, "A code file open in the Code Workbench editor");
+
+    containerEl.createEl("h3", { text: "What makes it different" });
+    const feats = containerEl.createEl("ul");
+    const feat = (lead: string, rest: string): void => {
+      const li = feats.createEl("li");
+      li.createEl("strong", { text: lead });
+      li.createSpan({ text: `: ${rest}` });
+    };
+    feat(
+      "Edit non-Markdown files",
+      "Obsidian only edits Markdown. Code Workbench opens .rs, .py, .ts, .go, .json, .yaml and " +
+        "dozens more in an editable, highlighted view, and saves your changes back to the file.",
+    );
+    feat("Syntax highlighting", "about 50 languages via tree-sitter, colored to match your Obsidian theme.");
+    feat("Diagnostics", "syntax errors are underlined where they occur, for about 48 languages.");
+    feat(
+      "One-command formatting",
+      "the Format code file command reformats about 28 languages, including JSON, XML, YAML, TOML, " +
+        "JavaScript, TypeScript, Python, Go, Rust, Ruby, PHP, and C/C++.",
+    );
+    feat(
+      "Accept or reject Claude's edits",
+      "a proposed change opens as a side-by-side diff. Keep it or reject it, and edit the proposed " +
+        "side first if you want. Nothing is written until you keep it.",
+    );
+    feat(
+      "Works with any model",
+      "it speaks the Claude Code CLI protocol rather than a model API, so it runs with Claude, " +
+        "Kimi K2, or any Anthropic-compatible endpoint you use through the CLI.",
+    );
+    feat(
+      "Launch Claude in one click",
+      "start the Claude Code CLI in this vault from the status bar or settings; it opens your " +
+        "terminal in the right folder.",
+    );
+
+    addShot(DIFF_SHOT, "A Claude edit shown as a Keep / Reject diff");
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text: "A Claude edit, shown as a Keep / Reject diff.",
+    });
+
+    containerEl.createEl("h3", { text: "Using it" });
+    const steps = containerEl.createEl("ol");
+    [
+      "Open a code file in your vault. It opens in an editable, highlighted editor.",
+      "Turn on Enable syntax highlighting below for tree-sitter colors and error underlines.",
+      'Format a file: open the Command Palette (Ctrl/Cmd+P), type "Format code file", and run it. You can assign a hotkey under Settings → Hotkeys.',
+      'Connect Claude: run "claude" in the vault folder, then run /ide in the CLI and pick Obsidian. The status bar shows "Claude ●" once connected (and "Claude ○" while it waits).',
+      'Share a selection: select text in a file and run "Add selection to Claude context" from the Command Palette to send it as an @-mention. With "Share selection automatically" on, the current selection is sent as it changes.',
+      "Claude's edits then open as a Keep / Reject diff you accept or reject.",
+    ].forEach((t) => steps.createEl("li", { text: t }));
+
+    addShot(CONNECT_SHOT, "Claude Code's /ide picker with Obsidian connected");
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text: "Running /ide in the CLI: pick Obsidian to connect.",
+    });
+
+    containerEl.createEl("h3", { text: "Language support" });
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text:
+        "Highlighting for 52 languages, diagnostics for 48, formatting for 28. Each grammar and " +
+        "formatter downloads the first time you open that language, then stays cached.",
+    });
+    const tableWrap = containerEl.createDiv({ cls: "cw-lang-table-wrap" });
+    const table = tableWrap.createEl("table", { cls: "cw-lang-table" });
+    const head = table.createEl("thead").createEl("tr");
+    for (const h of ["Language", "Highlighting", "Diagnostics", "Formatting"]) {
+      head.createEl("th", { text: h });
+    }
+    const body = table.createEl("tbody");
+    for (const [name, hi, di, fo] of LANGS) {
+      const tr = body.createEl("tr");
+      tr.createEl("td", { text: name });
+      tr.createEl("td", { text: hi ? "✅" : "—" });
+      tr.createEl("td", { text: di ? "✅" : "—" });
+      tr.createEl("td", { text: fo ? "✅" : "—" });
+    }
+
+    containerEl.createEl("h3", { text: "Try it" });
+    const tryP = containerEl.createEl("p", { cls: "setting-item-description" });
+    tryP.createSpan({ text: "Add the sample files to this vault, then open a language folder: " });
+    tryP.createEl("code", { text: "sample-*" });
+    tryP.createSpan({ text: " for highlighting, " });
+    tryP.createEl("code", { text: "messy-*" });
+    tryP.createSpan({ text: " for a diagnostic (a red underline at the spot marked in a comment), and " });
+    tryP.createEl("code", { text: "format-me-*" });
+    tryP.createSpan({ text: " for formatting (run Format code file and watch the layout fix itself)." });
+
+    new Setting(containerEl)
+      .setName("Demo files")
+      .setDesc('Copies a "Code Workbench demo" folder into this vault and opens a sample.')
+      .addButton((b) =>
+        b
+          .setCta()
+          .setButtonText("Add demo files to this vault")
+          .onClick(() => {
+            void this.plugin.installDemo();
+          }),
+      )
+      .addButton((b) =>
+        b.setButtonText("Browse on GitHub").onClick(() => {
+          window.open("https://github.com/vitaly-andr/obsidian-code-workbench/tree/main/demo");
+        }),
+      );
+
+    containerEl.createEl("h3", { text: "Settings" });
 
     new Setting(containerEl)
       .setName("Share selection automatically")
@@ -209,8 +469,8 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       .setName("Enable syntax highlighting")
       .setDesc(
         "Richer highlighting and syntax-error underlines for ~50 languages. Each language downloads a " +
-          "small grammar (~0.5–2 MB) once on first use, cached after — the internet is only needed that " +
-          "first time. Off keeps the simple highlighter.",
+          "small grammar (~0.5–2 MB) once on first use and stays cached, so the internet is only needed " +
+          "that first time. Off keeps the simple highlighter.",
       )
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.treeSitter).onChange(async (value) => {
@@ -222,21 +482,70 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Connection").setDesc(this.plugin.statusText());
 
     new Setting(containerEl)
-      .setName("Support")
-      .setDesc("This plugin is free. If it's useful, you can support development.")
+      .setName("Run Claude")
+      .setDesc("Open a terminal in this vault folder and start the Claude Code CLI.")
+      .addButton((b) =>
+        b
+          .setCta()
+          .setButtonText("▶ Run Claude in this vault")
+          .onClick(() => {
+            void this.plugin.runClaude();
+          }),
+      );
+
+    const support = containerEl.createDiv({ cls: "cw-support" });
+
+    support.createEl("h3", { text: "Support" });
+    support.createEl("p", {
+      cls: "setting-item-description",
+      text:
+        "Code Workbench is free. If it's useful to you, you can support it at a fraction of your " +
+        "Claude subscription.",
+    });
+
+    new Setting(support)
+      .setName("Donate")
+      .setDesc("Ways to support the project.")
       .addButton((b) =>
         b.setButtonText("♥ Donate").onClick(() => {
           window.open("https://github.com/vitaly-andr/obsidian-code-workbench/blob/main/SUPPORT.md");
         }),
       );
 
-    new Setting(containerEl)
+    support.createEl("h3", { text: "Sponsorship" });
+    support.createEl("p", {
+      cls: "setting-item-description",
+      text:
+        "No sponsors yet. To sponsor development or place your logo here, reach me on Telegram " +
+        "(@VITALY_ANDR) or by email (vitaly@andrianoff.online).",
+    });
+
+    new Setting(support)
       .setName("Contact")
-      .setDesc("Questions, feedback, or sponsorship? Message me on Telegram.")
+      .setDesc("Questions, feedback, or sponsorship.")
       .addButton((b) =>
         b.setButtonText("Telegram @VITALY_ANDR").onClick(() => {
           window.open("https://t.me/VITALY_ANDR");
         }),
+      )
+      .addButton((b) =>
+        b.setButtonText("Email").onClick(() => {
+          window.open("mailto:vitaly@andrianoff.online");
+        }),
       );
+
+    const qr = support.createDiv({ attr: { style: "text-align:center;margin-top:8px;" } });
+    const link = qr.createEl("a", { href: "https://t.me/VITALY_ANDR" });
+    link.createEl("img", {
+      attr: { src: TELEGRAM_QR, width: "150", alt: "Telegram @VITALY_ANDR", style: "border-radius:8px;" },
+    });
+
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      attr: { style: "margin-top:12px;" },
+      text:
+        "Source-available under the PolyForm Shield License 1.0.0: free to use, study, and modify, " +
+        "but not to build a competing product.",
+    });
   }
 }

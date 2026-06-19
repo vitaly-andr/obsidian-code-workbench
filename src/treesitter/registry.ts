@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Per-language tree-sitter sources. Versions are PINNED so the grammar's ABI matches the
 // web-tree-sitter runtime and the highlights query matches the grammar. Two source kinds:
 //   - npm  : the grammar's own package ships a current-ABI .wasm + queries (jsDelivr). 26 langs.

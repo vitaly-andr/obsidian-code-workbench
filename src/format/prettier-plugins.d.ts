@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // @prettier/plugin-xml ships no type declarations; treat it as an opaque Prettier plugin.
 declare module "@prettier/plugin-xml";
 

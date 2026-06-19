@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Maps a file extension to a language identifier (VS Code style). Unknown -> "plaintext".
 // Drives getOpenEditors.languageId. (Syntax highlighting itself lives in views/cm-theme.ts.)
 const EXT_TO_LANGUAGE: Record<string, string> = {

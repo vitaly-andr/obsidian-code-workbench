@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // JSON-RPC 2.0 error codes (§6.2) and the protocol-level error types.
 
 export const ERROR_CODES = {

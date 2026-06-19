@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Connects to a live plugin instance (discovered via its lock file) and exercises
 // the read-only tools — used to verify the plugin running inside real Obsidian.
 import { WebSocket } from "ws";

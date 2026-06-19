@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Formatting via the dprint engine + its WASM plugins. dprint plugins are downloaded on first use
 // from plugins.dprint.dev and cached, then run through @dprint/formatter. Used for languages the
 // other engines don't cover — currently markup_fmt (Vue/Svelte/Astro/HTML).

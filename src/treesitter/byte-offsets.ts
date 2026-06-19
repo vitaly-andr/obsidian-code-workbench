@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // tree-sitter reports positions as UTF-8 byte offsets (it parses UTF-8 text). CodeMirror
 // addresses the document in UTF-16 code units (JS string indices). The two coincide for ASCII
 // but diverge on any multi-byte text (cyrillic, CJK, emoji), so every offset that crosses from

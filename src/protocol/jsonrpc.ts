@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 import { IdeContext } from "../context";
 import { callTool, TOOL_DESCRIPTORS } from "../tools/registry";
 import { CancelledError, ERROR_CODES, RpcError } from "./errors";

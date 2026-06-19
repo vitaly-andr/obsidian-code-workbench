@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Runtime smoke test against the BUILT main.js: instantiate the plugin with a
 // stubbed Obsidian, run onload(), and connect as the CLI would. Verifies the
 // shipped artifact for connection (SC-001), auth (SC-007), and cleanup (SC-008).

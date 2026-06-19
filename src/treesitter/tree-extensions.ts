@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // The CodeMirror 6 wiring for a loaded tree-sitter grammar: one ViewPlugin parses the document and
 // produces syntax-highlight decorations; a linter reads the SAME tree for error/missing-node
 // diagnostics (no second parse). Highlighting bypasses CodeMirror's Lezer language facet entirely,

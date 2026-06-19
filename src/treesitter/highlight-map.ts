@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Maps tree-sitter highlight capture names to CSS classes. Capture names are dotted and
 // hierarchical ("keyword.control", "string.special", "function.method"); we resolve by the most
 // general segment. Classes are styled in styles.css against Obsidian's --code-* theme variables,

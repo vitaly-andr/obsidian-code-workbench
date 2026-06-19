@@ -1,11 +1,12 @@
 # Support
 
-Code Workbench for Obsidian is free. If it saves you time, a tip
-is welcome — never required.
+Code Workbench for Obsidian is free. If you find it useful, you can support it
+at a fraction of your Claude subscription.
 
 ## Contact & sponsorship
 
-Questions, feedback, or sponsorship — message me on Telegram: [@VITALY_ANDR](https://t.me/VITALY_ANDR)
+Questions, feedback, or sponsorship? Reach me on Telegram ([@VITALY_ANDR](https://t.me/VITALY_ANDR))
+or by email (vitaly@andrianoff.online).
 
 <img src="docs/telegram-qr.png" width="200" alt="Telegram @VITALY_ANDR">
 

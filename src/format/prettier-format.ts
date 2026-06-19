@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // In-process code formatting via Prettier standalone — no external tools, no language servers.
 // Bundled into main.js (Prettier is plain JS); lazy-loading is a later optimization, since an
 // Obsidian plugin loads a single main.js and may not load remote code.

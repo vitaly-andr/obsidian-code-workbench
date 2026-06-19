@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Formatting for languages Prettier doesn't cover, via @wasm-fmt formatters (Go=gofmt,
 // Python=ruff). Each formatter's wasm is downloaded on first use and cached in the plugin folder,
 // then the /web build is initialized from those bytes — the same lazy, offline-after-first model as

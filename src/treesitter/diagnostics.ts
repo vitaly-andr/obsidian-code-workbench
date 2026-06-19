@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Syntax-error diagnostics straight from a tree-sitter parse tree. Unlike the Lezer linter (which
 // only sees the bundled lang-* grammars), this works for every tree-sitter language — including the
 // ones that are StreamLanguage-only today (bash, ruby, lua, swift…) and so have no error underlines.

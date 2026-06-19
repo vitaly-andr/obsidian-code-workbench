@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // The @wasm-fmt /web entries are resolved by esbuild via the package "exports" map; classic TS
 // module resolution can't see those subpaths, so declare their tiny surface here. init() accepts
 // the wasm bytes directly (BufferSource), which is how we feed the downloaded module. format()

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Shared CodeMirror 6 styling + language resolution for CodeView and the diff view.
 // Theme-aware: tokens map to Obsidian's `--code-*` CSS variables so the editor matches the
 // active Obsidian theme. CM6 core/Lezer stay external (R2); only the language packs are bundled.

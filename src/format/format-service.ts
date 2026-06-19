@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // One entry point for "Format code file". Tries each engine in order until one returns formatted
 // text: Prettier v3 (web + xml) -> Prettier v2 (rust) -> @wasm-fmt (downloaded) -> dprint (downloaded).
 // Each returns null when it doesn't handle the extension, so the chain falls through.
