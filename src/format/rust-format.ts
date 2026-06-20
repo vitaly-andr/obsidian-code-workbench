@@ -3,16 +3,31 @@
 
 // Rust formatting via prettier-plugin-rust (the jinx-rust parser). The plugin targets Prettier v2's
 // doc API (v3 removed `concat`), so a Prettier v2 standalone is bundled under the `prettier-v2`
-// alias just for Rust. Pure JS, in-process (no download), ~0.8MB of bundle.
-import { format as formatV2 } from "prettier-v2/standalone";
-import * as rustPluginNs from "prettier-plugin-rust";
+// alias just for Rust. Pure JS, in-process (no download); loaded lazily on the first Rust format
+// (dynamic import) to stay off the plugin's onload path.
+let engine: Promise<{ format: (src: string, opts: any) => string; plugin: any }> | null = null;
 
-const rustPlugin: any = rustPluginNs.default ?? rustPluginNs;
+function loadEngine() {
+  if (!engine) {
+    engine = (async () => {
+      const [v2, rustPluginNs] = await Promise.all([
+        import("prettier-v2/standalone"),
+        import("prettier-plugin-rust"),
+      ]);
+      return {
+        format: v2.format as (src: string, opts: any) => string,
+        plugin: (rustPluginNs as any).default ?? rustPluginNs,
+      };
+    })();
+  }
+  return engine;
+}
 
-export function formatRust(text: string, ext: string): string | null {
+export async function formatRust(text: string, ext: string): Promise<string | null> {
   if (ext !== "rs") return null;
   try {
-    return formatV2(text, { parser: "jinx-rust", plugins: [rustPlugin] }) as unknown as string;
+    const { format, plugin } = await loadEngine();
+    return format(text, { parser: "jinx-rust", plugins: [plugin] });
   } catch {
     return null;
   }

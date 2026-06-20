@@ -7,25 +7,27 @@
 import { DataAdapter } from "obsidian";
 import { formatCode } from "./prettier-format";
 import { formatRust } from "./rust-format";
-import { formatRuby } from "./ruby-format";
+import { RubyFormatter } from "./ruby-format";
 import { WasmFormatterLoader } from "./wasm-fmt";
 import { DprintFormatterLoader } from "./dprint-format";
 
 export class FormatService {
   private readonly wasm: WasmFormatterLoader;
   private readonly dprint: DprintFormatterLoader;
+  private readonly ruby: RubyFormatter;
 
   constructor(adapter: DataAdapter, baseDir: string) {
     const dir = `${baseDir}/formatters`;
     this.wasm = new WasmFormatterLoader(adapter, dir);
     this.dprint = new DprintFormatterLoader(adapter, dir);
+    this.ruby = new RubyFormatter(adapter, dir);
   }
 
   async format(text: string, ext: string): Promise<string | null> {
     return (
       (await formatCode(text, ext)) ??
-      formatRust(text, ext) ??
-      (await formatRuby(text, ext)) ??
+      (await formatRust(text, ext)) ??
+      (await this.ruby.format(text, ext)) ??
       (await this.wasm.format(text, ext)) ??
       (await this.dprint.format(text, ext))
     );

@@ -2,22 +2,9 @@
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
 // In-process code formatting via Prettier standalone — no external tools, no language servers.
-// Bundled into main.js (Prettier is plain JS); lazy-loading is a later optimization, since an
-// Obsidian plugin loads a single main.js and may not load remote code.
-import { format } from "prettier/standalone";
-import * as babel from "prettier/plugins/babel";
-import * as estree from "prettier/plugins/estree";
-import * as typescript from "prettier/plugins/typescript";
-import * as postcss from "prettier/plugins/postcss";
-import * as htmlPlugin from "prettier/plugins/html";
-import * as yamlPlugin from "prettier/plugins/yaml";
-import xmlPlugin from "@prettier/plugin-xml";
-// jinja2 is the only template formatter bundled (zero extra deps, +~0.1 MB). twig/pug/gherkin each
-// pull a large parser (~4 MB), and blade/liquid more — all deferred to the future external-formatter
-// layer (user installs the CLI, Claude guides setup) rather than bloating main.js. It exports its
-// plugin object on the module default, so normalize with pick().
-import * as jinjaNs from "prettier-plugin-jinja-template";
-
+// Prettier is bundled into main.js but loaded lazily on the first format, and only the plugins the
+// current file's parser needs (formatting a .json never pulls the TypeScript or HTML plugin). Nothing
+// here runs on the plugin's onload path.
 const pick = (m: any): any => (m && m.default) || m;
 
 // File extension -> Prettier parser. (JSON parsers live in the babel plugin; estree is the printer.)
@@ -36,13 +23,47 @@ const PARSER: Record<string, string> = {
   j2: "jinja-template", jinja: "jinja-template", jinja2: "jinja-template",
 };
 
-const PLUGINS: any[] = [
-  babel, estree, typescript, postcss, htmlPlugin, yamlPlugin, xmlPlugin,
-  pick(jinjaNs),
-];
-
 export function canFormat(ext: string): boolean {
   return ext in PARSER;
+}
+
+// Prettier standalone — loaded once on first format. The JS module system memoizes import(), so
+// repeated calls reuse the same module.
+let stdPromise: Promise<typeof import("prettier/standalone")> | null = null;
+const loadPrettier = () => (stdPromise ??= import("prettier/standalone"));
+
+// Only the plugins a given parser needs. estree is the printer for the JS/TS/JSON ASTs; html embeds
+// JS/CSS, so it also needs babel/estree/postcss. jinja2 is the only bundled template formatter (zero
+// extra deps); twig/pug/gherkin/blade/liquid pull large parsers and are deferred to the future
+// external-formatter layer.
+async function pluginsFor(parser: string): Promise<any[]> {
+  switch (parser) {
+    case "babel":
+    case "json":
+    case "json5":
+      return Promise.all([import("prettier/plugins/babel"), import("prettier/plugins/estree")]);
+    case "typescript":
+      return Promise.all([import("prettier/plugins/typescript"), import("prettier/plugins/estree")]);
+    case "css":
+    case "scss":
+    case "less":
+      return [await import("prettier/plugins/postcss")];
+    case "html":
+      return Promise.all([
+        import("prettier/plugins/html"),
+        import("prettier/plugins/babel"),
+        import("prettier/plugins/estree"),
+        import("prettier/plugins/postcss"),
+      ]);
+    case "yaml":
+      return [await import("prettier/plugins/yaml")];
+    case "xml":
+      return [pick(await import("@prettier/plugin-xml"))];
+    case "jinja-template":
+      return [pick(await import("prettier-plugin-jinja-template"))];
+    default:
+      return [];
+  }
 }
 
 // Formatted text, or null if the extension is unsupported or Prettier threw (e.g. a syntax
@@ -51,7 +72,8 @@ export async function formatCode(text: string, ext: string): Promise<string | nu
   const parser = PARSER[ext];
   if (!parser) return null;
   try {
-    return await format(text, { parser, plugins: PLUGINS });
+    const [std, plugins] = await Promise.all([loadPrettier(), pluginsFor(parser)]);
+    return await std.format(text, { parser, plugins });
   } catch {
     return null;
   }

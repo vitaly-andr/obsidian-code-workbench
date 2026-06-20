@@ -88,6 +88,30 @@
 .cw-license {
   margin-top: 12px;
 }
+.cw-donate {
+  margin: 6px 0 10px;
+}
+.cw-donate summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.cw-coin {
+  margin: 8px 0;
+}
+.cw-coin-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+.cw-coin-addr {
+  display: block;
+  user-select: all;
+  word-break: break-all;
+  font-size: 12px;
+  padding: 4px 6px;
+  background: var(--background-primary-alt);
+  border-radius: 4px;
+}
 .cw-badges {
   display: flex;
   flex-wrap: wrap;

@@ -72,17 +72,30 @@ export class DiffView extends ItemView {
       a: { doc: req.oldContents, extensions: [...common, EditorState.readOnly.of(true)] },
       b: { doc: req.newContents, extensions: [...common] },
       parent: host,
+      // On large files, fold long unchanged stretches so every change is visible at once
+      // (3 context lines around each; collapse runs of 4+ unchanged lines). Click to expand.
+      collapseUnchanged: { margin: 3, minSize: 4 },
+      // Per-chunk revert arrows on the editable side: revert a single proposed hunk back to the
+      // original (reject just that change). "a-to-b" writes into b, leaving the read-only a intact.
+      // Keep then commits whatever remains in b (= all changes if you reverted none).
+      revertControls: "a-to-b",
     });
 
-    // Center the view on the first change rather than the top of the file.
-    try {
-      const chunk = this.merge.chunks[0];
-      if (chunk) {
+    // Put the cursor on the first change (editable side) and scroll to it, not the top of the file.
+    // Also re-run after layout: a freshly opened leaf may be unmeasured, so an immediate
+    // scrollIntoView has nothing to measure against.
+    const toFirstChange = (): void => {
+      const chunk = this.merge?.chunks[0];
+      if (!chunk || !this.merge) return;
+      try {
         this.merge.b.dispatch({ selection: { anchor: chunk.fromB }, scrollIntoView: true });
+        this.merge.b.focus();
+      } catch {
+        // Best-effort positioning.
       }
-    } catch {
-      // Best-effort positioning.
-    }
+    };
+    toFirstChange();
+    window.requestAnimationFrame(toFirstChange);
   }
 
   private finalContents(): string {

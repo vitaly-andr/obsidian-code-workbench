@@ -10,7 +10,6 @@ import { LockFile } from "./src/server/lockfile";
 import { IdeServer } from "./src/server/websocket-server";
 import { activeSelection } from "./src/tools/selection";
 import { error, info, warn } from "./src/util/log";
-import { CONNECT_SHOT, DIFF_SHOT, TELEGRAM_QR, WORKBENCH_SHOT } from "./src/util/qr";
 import { launchClaude } from "./src/util/launch";
 import { DEMO_FILES } from "./src/util/demo-files";
 import { CODE_VIEW_EXTENSIONS, CodeView } from "./src/views/code-view";
@@ -19,6 +18,24 @@ import { FormatService } from "./src/format/format-service";
 import { DiffView } from "./src/views/diff-view";
 import { CODE_VIEW_TYPE, DIFF_VIEW_TYPE } from "./src/views/view-types";
 import { vaultBasePath } from "./src/util/paths";
+
+// window.open is unreliable in Obsidian's renderer; open external URLs through Electron's shell,
+// falling back to window.open.
+function openExternal(url: string): void {
+  try {
+    const req = (window as unknown as { require?: (m: string) => unknown }).require;
+    if (req) {
+      const electron = req("electron") as { shell?: { openExternal?: (u: string) => void } };
+      if (electron.shell?.openExternal) {
+        void electron.shell.openExternal(url);
+        return;
+      }
+    }
+  } catch {
+    // fall through to window.open
+  }
+  window.open(url, "_blank");
+}
 
 interface CodeWorkbenchSettings {
   // Whether to push selection_changed automatically as the selection changes.
@@ -69,11 +86,17 @@ export default class CodeWorkbenchPlugin extends Plugin {
     );
     const tsConfig = { loader: grammarLoader, enabled: () => this.settings.treeSitter };
     this.registerView(CODE_VIEW_TYPE, (leaf) => new CodeView(leaf, tsConfig, formatService));
-    for (const ext of CODE_VIEW_EXTENSIONS) {
-      try {
-        this.registerExtensions([ext], CODE_VIEW_TYPE);
-      } catch {
-        // extension already registered elsewhere
+    try {
+      // One batched call instead of ~95 — far less file-explorer churn on enable.
+      this.registerExtensions(CODE_VIEW_EXTENSIONS, CODE_VIEW_TYPE);
+    } catch {
+      // Another plugin already owns one of these extensions; register the rest individually.
+      for (const ext of CODE_VIEW_EXTENSIONS) {
+        try {
+          this.registerExtensions([ext], CODE_VIEW_TYPE);
+        } catch {
+          // extension already registered elsewhere
+        }
       }
     }
 
@@ -305,11 +328,12 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("cw-settings");
 
-    const addShot = (src: string, alt: string): void => {
-      containerEl.createEl("img", {
-        cls: "cw-shot",
-        attr: { src, alt },
-      });
+    // Screenshots live in qr.ts (~0.5MB base64). Load that module only when settings open, not on
+    // plugin load: create the <img> now (correct layout slot) and fill its src once it resolves.
+    const pendingShots: Array<[HTMLImageElement, string]> = [];
+    const addShot = (key: string, alt: string): void => {
+      const img = containerEl.createEl("img", { cls: "cw-shot", attr: { alt } });
+      pendingShots.push([img, key]);
     };
 
     const badges = containerEl.createDiv({ cls: "cw-badges" });
@@ -331,7 +355,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       .createEl("p", { cls: "setting-item-description" })
       .createEl("em", { text: "Other Claude plugins give you a chat. This gives you an editor." });
 
-    addShot(WORKBENCH_SHOT, "A code file open in the Code Workbench editor");
+    addShot("WORKBENCH_SHOT", "A code file open in the Code Workbench editor");
 
     new Setting(containerEl).setName("What makes it different").setHeading();
     const feats = containerEl.createEl("ul");
@@ -368,7 +392,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
         "terminal in the right folder.",
     );
 
-    addShot(DIFF_SHOT, "A Claude edit shown as a Keep / Reject diff");
+    addShot("DIFF_SHOT", "A Claude edit shown as a Keep / Reject diff");
     containerEl.createEl("p", {
       cls: "setting-item-description",
       text: "A Claude edit, shown as a Keep / Reject diff.",
@@ -385,7 +409,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       "Claude's edits then open as a Keep / Reject diff you accept or reject.",
     ].forEach((t) => steps.createEl("li", { text: t }));
 
-    addShot(CONNECT_SHOT, "Claude Code's /ide picker with Obsidian connected");
+    addShot("CONNECT_SHOT", "Claude Code's /ide picker with Obsidian connected");
     containerEl.createEl("p", {
       cls: "setting-item-description",
       text: "Running /ide in the CLI: pick Obsidian to connect.",
@@ -483,21 +507,30 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
         "Claude subscription.",
     });
 
-    new Setting(support)
-      .setName("Donate")
-      .setDesc("Ways to support the project.")
-      .addButton((b) =>
-        b.setButtonText("♥ Donate").onClick(() => {
-          window.open("https://github.com/vitaly-andr/obsidian-code-workbench/blob/main/SUPPORT.md");
-        }),
-      );
+    const donate = support.createEl("details", { cls: "cw-donate" });
+    donate.createEl("summary", { text: "♥ Support with crypto" });
+    donate.createEl("p", {
+      cls: "setting-item-description",
+      text: "If it helps you, a crypto tip is welcome (any amount). Click an address to select it.",
+    });
+    const coin = (label: string, addr: string): void => {
+      const row = donate.createDiv({ cls: "cw-coin" });
+      row.createEl("div", { cls: "cw-coin-label", text: label });
+      row.createEl("code", { cls: "cw-coin-addr", text: addr });
+    };
+    coin(
+      "EVM — USDT / USDC / ETH (Polygon, Base, BSC, Arbitrum)",
+      "0x3F0ce81a099D8e8dDbfADa0350a933fBA967b63F",
+    );
+    coin("USDT — TRON / TRC20", "TSmwsds6rj9LtiFdPrx6k7yan96B5VEt9x");
+    coin("Bitcoin", "bc1qgh6hnuldrnvyjqrka3m0rfmznxjzmkkp8g9jrg");
 
     new Setting(support)
       .setName("Star on GitHub")
       .setDesc("A star improves karma :)")
       .addButton((b) =>
         b.setButtonText("★ Star on GitHub").onClick(() => {
-          window.open("https://github.com/vitaly-andr/obsidian-code-workbench");
+          openExternal("https://github.com/vitaly-andr/obsidian-code-workbench");
         }),
       );
 
@@ -514,27 +547,36 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       .setDesc("Questions, feedback, or sponsorship.")
       .addButton((b) =>
         b.setButtonText("Telegram @VITALY_ANDR").onClick(() => {
-          window.open("https://t.me/VITALY_ANDR");
+          openExternal("https://t.me/VITALY_ANDR");
         }),
       )
       .addButton((b) =>
         b.setButtonText("Email").onClick(() => {
-          window.open("mailto:vitaly@andrianoff.online");
+          openExternal("mailto:vitaly@andrianoff.online");
         }),
       );
 
     const qr = support.createDiv({ cls: "cw-qr" });
     const link = qr.createEl("a", { href: "https://t.me/VITALY_ANDR" });
-    link.createEl("img", {
-      cls: "cw-qr-img",
-      attr: { src: TELEGRAM_QR, alt: "Telegram @VITALY_ANDR" },
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      openExternal("https://t.me/VITALY_ANDR");
     });
+    const qrImg = link.createEl("img", { cls: "cw-qr-img", attr: { alt: "Telegram @VITALY_ANDR" } });
 
     containerEl.createEl("p", {
       cls: "setting-item-description cw-license",
       text:
         "Source-available under the PolyForm Shield License 1.0.0: free to use, study, and modify, " +
         "but not to build a competing product.",
+    });
+
+    // Fill the screenshot/QR images now that the settings tab is open (qr.ts is ~0.5MB, kept off
+    // the onload path).
+    void import("./src/util/qr").then((qr) => {
+      const assets = qr as unknown as Record<string, string>;
+      for (const [img, key] of pendingShots) img.src = assets[key];
+      qrImg.src = assets.TELEGRAM_QR;
     });
   }
 }
