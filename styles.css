@@ -112,6 +112,14 @@
   background: var(--background-primary-alt);
   border-radius: 4px;
 }
+.cw-coin-qr {
+  display: block;
+  width: 128px;
+  margin: 8px 0 4px;
+  padding: 6px;
+  background: #fff;
+  border-radius: 6px;
+}
 .cw-badges {
   display: flex;
   flex-wrap: wrap;
