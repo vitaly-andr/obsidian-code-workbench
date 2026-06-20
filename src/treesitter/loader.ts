@@ -31,10 +31,17 @@ export class GrammarLoader {
   load(src: GrammarSource): Promise<LoadedGrammar | null> {
     let pending = this.cache.get(src.id);
     if (!pending) {
-      pending = this.doLoad(src).catch((e) => {
-        warn(`tree-sitter: grammar "${src.id}" failed to load: ${String(e)}`);
-        return null;
-      });
+      pending = this.doLoad(src)
+        .catch((e) => {
+          warn(`tree-sitter: grammar "${src.id}" failed to load: ${String(e)}`);
+          return null;
+        })
+        .then((g) => {
+          // Don't memoize failures (e.g. offline on first use): drop the entry so a later open
+          // retries the download once back online. Successful loads stay cached for the session.
+          if (!g) this.cache.delete(src.id);
+          return g;
+        });
       this.cache.set(src.id, pending);
     }
     return pending;

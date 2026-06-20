@@ -125,11 +125,10 @@ language folder:
 
 ## Install
 
-### BRAT (until it's in the Community store)
+### Community plugins (recommended)
 
-1. Install **BRAT** from Community plugins.
-2. BRAT → *Add beta plugin* → `vitaly-andr/obsidian-code-workbench`.
-3. Enable **Code Workbench** in Settings → Community plugins. Desktop only.
+1. Open **Settings → Community plugins → Browse** and search for **Code Workbench**.
+2. Install it, then enable it. Desktop only.
 
 ### Manual
 

@@ -14,6 +14,9 @@ All notable changes to Code Workbench are documented here. The format is based o
 - Diff review: opening a diff places the cursor on the first change and scrolls to it.
 
 ### Changed
+- Syntax highlighting (tree-sitter) is on by default. Each language's grammar downloads on
+  first use and is cached; offline, the simpler highlighter is used until the grammar can be
+  fetched.
 - Faster startup: the code formatters now load only when you format a file, instead of when
   the plugin loads, so enabling it is quicker.
 - Smaller download: the Ruby parser (~0.6 MB) is fetched on first use and cached instead of

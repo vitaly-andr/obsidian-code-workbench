@@ -44,7 +44,7 @@ interface CodeWorkbenchSettings {
   treeSitter: boolean;
 }
 
-const DEFAULT_SETTINGS: CodeWorkbenchSettings = { shareSelection: true, treeSitter: false };
+const DEFAULT_SETTINGS: CodeWorkbenchSettings = { shareSelection: true, treeSitter: true };
 
 export default class CodeWorkbenchPlugin extends Plugin {
   settings: CodeWorkbenchSettings = { ...DEFAULT_SETTINGS };
