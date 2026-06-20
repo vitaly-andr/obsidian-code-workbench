@@ -4,6 +4,15 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [1.1.1] - 2026-06-21
+
+### Changed
+- Diff review: the per-change reject control is now a red ✕ instead of an arrow that read like
+  "apply", making it clear the control discards (reverts) that change.
+
+### Fixed
+- Diff review: the reject control no longer shows two tooltips on hover.
+
 ## [1.1.0] - 2026-06-20
 
 ### Added

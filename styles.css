@@ -33,6 +33,16 @@
   height: 100%;
 }
 
+/* Per-chunk reject control: a red ✕ (revert this proposed hunk to the original). */
+.code-workbench-diff .cm-merge-revert button.cw-revert-reject {
+  color: var(--text-error);
+  font-weight: 700;
+}
+.code-workbench-diff .cm-merge-revert button.cw-revert-reject:hover {
+  color: var(--text-error);
+  background: var(--background-modifier-error-hover);
+}
+
 /* tree-sitter highlighting: capture classes mapped to Obsidian's --code-* theme variables, so the
    tree-sitter path matches the active theme exactly like the Lezer HighlightStyle does. */
 .cm-ts-keyword { color: var(--code-keyword); }

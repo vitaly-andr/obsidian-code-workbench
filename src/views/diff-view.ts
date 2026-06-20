@@ -75,10 +75,21 @@ export class DiffView extends ItemView {
       // On large files, fold long unchanged stretches so every change is visible at once
       // (3 context lines around each; collapse runs of 4+ unchanged lines). Click to expand.
       collapseUnchanged: { margin: 3, minSize: 4 },
-      // Per-chunk revert arrows on the editable side: revert a single proposed hunk back to the
-      // original (reject just that change). "a-to-b" writes into b, leaving the read-only a intact.
-      // Keep then commits whatever remains in b (= all changes if you reverted none).
+      // Per-chunk revert on the editable side: revert a single proposed hunk back to the original
+      // (reject just that change). "a-to-b" writes into b, leaving the read-only a intact. Keep then
+      // commits whatever remains in b (= all changes if you reverted none).
       revertControls: "a-to-b",
+      // The default glyph is a rightward arrow that reads like "apply", but the action rejects the
+      // proposed hunk. Use a red ✕ (reject) with an explicit tooltip instead.
+      renderRevertControl: () => {
+        const b = document.createElement("button");
+        b.className = "cw-revert-reject";
+        // aria-label alone: Obsidian renders its own styled tooltip from it. Setting `title` too
+        // would also trigger the native browser tooltip — two tooltips on hover.
+        b.setAttribute("aria-label", "Reject this change");
+        b.textContent = "✕";
+        return b;
+      },
     });
 
     // Put the cursor on the first change (editable side) and scroll to it, not the top of the file.
