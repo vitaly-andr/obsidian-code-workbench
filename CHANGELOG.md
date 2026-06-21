@@ -4,6 +4,13 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [1.2.1] - 2026-06-21
+
+### Changed
+- Internal only, no user-facing changes: the explorer icons apply their background through
+  `setCssStyles` (Obsidian plugin-review guideline), and the release workflow uses current GitHub
+  Actions.
+
 ## [1.2.0] - 2026-06-21
 
 ### Added
