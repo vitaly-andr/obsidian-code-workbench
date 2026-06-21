@@ -196,7 +196,7 @@ export function makeRubyPlugin(parse: (src: string) => PrismParseResult): Plugin
               return { start, end, text: text.slice(start, end) };
             })
             .sort((a: any, b: any) => a.start - b.start);
-          (root as any).__rubyState = { source: text, comments };
+          root.__rubyState = { source: text, comments };
           return root;
         },
         astFormat: AST_FORMAT,

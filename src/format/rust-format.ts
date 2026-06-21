@@ -16,7 +16,7 @@ function loadEngine() {
       ]);
       return {
         format: v2.format as (src: string, opts: any) => string,
-        plugin: (rustPluginNs as any).default ?? rustPluginNs,
+        plugin: rustPluginNs.default ?? rustPluginNs,
       };
     })();
   }
