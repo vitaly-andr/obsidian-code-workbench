@@ -18,6 +18,8 @@ import { FormatService } from "./src/format/format-service";
 import { DiffView } from "./src/views/diff-view";
 import { CODE_VIEW_TYPE, DIFF_VIEW_TYPE } from "./src/views/view-types";
 import { vaultBasePath } from "./src/util/paths";
+import { IconLoader } from "./src/icons/icon-loader";
+import { ExplorerIcons } from "./src/icons/explorer-icons";
 
 // window.open is unreliable in Obsidian's renderer; open external URLs through Electron's shell,
 // falling back to window.open.
@@ -42,9 +44,15 @@ interface CodeWorkbenchSettings {
   shareSelection: boolean;
   // Opt-in: use tree-sitter for highlighting + diagnostics. Grammars download on first use.
   treeSitter: boolean;
+  // Show Material file/folder icons in the explorer. SVGs download on first use.
+  fileIcons: boolean;
 }
 
-const DEFAULT_SETTINGS: CodeWorkbenchSettings = { shareSelection: true, treeSitter: true };
+const DEFAULT_SETTINGS: CodeWorkbenchSettings = {
+  shareSelection: true,
+  treeSitter: true,
+  fileIcons: true,
+};
 
 export default class CodeWorkbenchPlugin extends Plugin {
   settings: CodeWorkbenchSettings = { ...DEFAULT_SETTINGS };
@@ -54,6 +62,7 @@ export default class CodeWorkbenchPlugin extends Plugin {
   private statusEl: HTMLElement | null = null;
   private port = 0;
   private connected = false;
+  private explorerIcons: ExplorerIcons | null = null;
 
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -99,6 +108,27 @@ export default class CodeWorkbenchPlugin extends Plugin {
         }
       }
     }
+
+    // File-type icons in the explorer. Material icons are fetched on demand (same lazy/cached
+    // pattern as grammars) and painted onto the nav rows.
+    const iconLoader = new IconLoader(
+      this.app.vault.adapter,
+      `${this.app.vault.configDir}/plugins/${this.manifest.id}/icons`,
+    );
+    this.explorerIcons = new ExplorerIcons(this.app, iconLoader);
+    if (this.settings.fileIcons) this.explorerIcons.enable();
+    // The explorer leaf is built after onload and can be rebuilt later; repaint once the workspace
+    // is ready and whenever the layout or the file tree changes.
+    this.app.workspace.onLayoutReady(() => {
+      if (this.settings.fileIcons) this.explorerIcons?.refresh();
+    });
+    const repaintIcons = () => {
+      if (this.settings.fileIcons) this.explorerIcons?.refresh();
+    };
+    this.registerEvent(this.app.workspace.on("layout-change", repaintIcons));
+    this.registerEvent(this.app.vault.on("create", repaintIcons));
+    this.registerEvent(this.app.vault.on("rename", repaintIcons));
+    this.registerEvent(this.app.vault.on("delete", repaintIcons));
 
     // Track selection: cache it (for getLatestSelection) and push selection_changed to the CLI.
     let selectionTimer: number | null = null;
@@ -194,6 +224,8 @@ export default class CodeWorkbenchPlugin extends Plugin {
     void this.lock?.remove().catch((e) => warn("lock removal failed", e));
     void this.server?.stop().catch((e) => warn("server stop failed", e));
     this.ctx?.diffs.closeAll();
+    this.explorerIcons?.disable();
+    this.explorerIcons = null;
     this.lock = null;
     this.server = null;
     this.ctx = null;
@@ -202,6 +234,12 @@ export default class CodeWorkbenchPlugin extends Plugin {
   statusText(): string {
     if (!this.port) return "not started";
     return `127.0.0.1:${this.port} — ${this.connected ? "connected" : "waiting for Claude"}`;
+  }
+
+  // Live toggle from the settings tab: attach + paint, or strip the explorer icons immediately.
+  setFileIcons(on: boolean): void {
+    if (on) this.explorerIcons?.enable();
+    else this.explorerIcons?.disable();
   }
 
   private refreshStatus(): void {
@@ -398,6 +436,12 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       text: "A Claude edit, shown as a Keep / Reject diff.",
     });
 
+    addShot("ICONS_SHOT", "Material file-type icons in the file explorer");
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text: "Material file and folder icons in the explorer.",
+    });
+
     new Setting(containerEl).setName("Using it").setHeading();
     const steps = containerEl.createEl("ol");
     [
@@ -479,6 +523,20 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.treeSitter).onChange(async (value) => {
           this.plugin.settings.treeSitter = value;
+          await this.plugin.saveData(this.plugin.settings);
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("File type icons")
+      .setDesc(
+        "Show Material file and folder icons in the file explorer. Each icon downloads once on first " +
+          "use, then stays cached.",
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.fileIcons).onChange(async (value) => {
+          this.plugin.settings.fileIcons = value;
+          this.plugin.setFileIcons(value);
           await this.plugin.saveData(this.plugin.settings);
         }),
       );

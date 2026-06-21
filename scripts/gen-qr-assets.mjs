@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 const ASSETS = [
   { name: "WORKBENCH_SHOT", src: "docs/workbench.png", kind: "shot" },
   { name: "DIFF_SHOT", src: "docs/diff.png", kind: "shot" },
+  { name: "ICONS_SHOT", src: "docs/file-icons.png", kind: "shot" },
   { name: "CONNECT_SHOT", src: "docs/connect.png", kind: "shot" },
   { name: "TELEGRAM_QR", src: "docs/telegram-qr.png", kind: "qr" },
   { name: "QR_EVM", src: "docs/evm.jpg", kind: "qr" },

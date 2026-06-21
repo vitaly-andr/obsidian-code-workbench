@@ -30,8 +30,11 @@ Keep/Reject diff you control.
   Claude, Kimi K2, or any Anthropic-compatible endpoint you use through the CLI.
 - **Launch Claude in one click.** Start the CLI in your vault from the status bar or settings; it
   opens your terminal in the right folder.
+- **File-type icons.** Material file and folder icons in the explorer.
 
 <img src="docs/diff.png" alt="A Claude edit shown as a Keep / Reject diff" width="100%">
+
+<img src="docs/file-icons.png" alt="Material file-type icons in the file explorer" width="100%">
 
 ## Language support
 
@@ -198,6 +201,13 @@ No sponsors yet. To sponsor development or place your logo here, get in touch:
 - Email: vitaly@andrianoff.online
 
 <a href="https://t.me/VITALY_ANDR"><img src="docs/telegram-qr.png" width="180" alt="Telegram @VITALY_ANDR"></a>
+
+## Acknowledgements
+
+The file-type icons are derived from
+[material-icon-theme](https://github.com/material-extensions/vscode-material-icon-theme) by Material
+Extensions (MIT). The icon-name mapping is distilled into the plugin; the SVGs are fetched on demand
+from jsDelivr and cached, not bundled.
 
 ## License
 

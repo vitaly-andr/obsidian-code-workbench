@@ -182,3 +182,16 @@
   text-align: center;
   white-space: nowrap;
 }
+
+/* File-type icons in the explorer (Material icon set, fetched on demand and painted as a
+   background-image). The span is only present while the "File type icons" setting is on. */
+.cw-nav-icon {
+  flex: 0 0 auto;
+  align-self: center;
+  width: var(--cw-nav-icon-size, 16px);
+  height: var(--cw-nav-icon-size, 16px);
+  margin-right: 4px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
