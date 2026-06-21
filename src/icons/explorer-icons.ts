@@ -108,10 +108,10 @@ export class ExplorerIcons {
   private paint(span: HTMLElement, name: string): void {
     const url = this.urls.get(name);
     if (url !== undefined) {
-      span.style.backgroundImage = url ? `url("${url}")` : "";
+      span.setCssStyles({ backgroundImage: url ? `url("${url}")` : "" });
       return;
     }
-    span.style.backgroundImage = "";
+    span.setCssStyles({ backgroundImage: "" });
     void this.fetch(name);
   }
 
@@ -124,7 +124,7 @@ export class ExplorerIcons {
     if (!url || !this.container) return;
     const sel = `[${NAME_ATTR}="${name}"] > .${ICON_CLASS}`;
     this.container.querySelectorAll<HTMLElement>(sel).forEach((span) => {
-      span.style.backgroundImage = `url("${url}")`;
+      span.setCssStyles({ backgroundImage: `url("${url}")` });
     });
   }
 
