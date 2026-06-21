@@ -4,6 +4,12 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [1.1.2] - 2026-06-21
+
+### Fixed
+- Diff review: the per-change reject control now behaves correctly when the diff is opened in a
+  pop-out window.
+
 ## [1.1.1] - 2026-06-21
 
 ### Changed
