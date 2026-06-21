@@ -4,6 +4,14 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [1.2.0] - 2026-06-21
+
+### Added
+- File-type icons in the file explorer: Material file and folder icons matched by filename and
+  extension, with an open-folder variant for expanded folders. Each icon downloads on first use and
+  stays cached. On by default; toggle under Settings → Code Workbench → "File type icons". Icon set
+  derived from material-icon-theme (MIT).
+
 ## [1.1.3] - 2026-06-21
 
 ### Changed
