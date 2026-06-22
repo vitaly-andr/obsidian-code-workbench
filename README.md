@@ -47,7 +47,7 @@ your CLI points at.
 - **Launch Claude in one click.** Start the CLI in your vault from the status bar or settings; it
   opens your terminal in the right folder.
 - **File-type icons.** Material file and folder icons in the explorer.
-- **Vault tools for Claude.** Opt in to let Claude read and maintain the vault through
+- **Vault tools for Claude.** Turn it on to let Claude read and maintain the vault through
   model-callable tools — backlinks, search, frontmatter, link-preserving rename, trash delete —
   with every write shown for your approval. See [Vault tools for Claude](#vault-tools-for-claude).
 - **Edit hidden files.** A *Hidden files* sidebar panel lists the dot-files Obsidian normally hides
