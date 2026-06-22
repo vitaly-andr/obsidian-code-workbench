@@ -267,8 +267,8 @@ export default class CodeWorkbenchPlugin extends Plugin {
     void this.lock?.remove().catch((e) => warn("lock removal failed", e));
     void this.server?.stop().catch((e) => warn("server stop failed", e));
     void this.companion?.stop().catch((e) => warn("companion stop failed", e));
-    this.app.workspace.detachLeavesOfType(HIDDEN_TREE_VIEW_TYPE);
-    this.app.workspace.detachLeavesOfType(HIDDEN_FILE_VIEW_TYPE);
+    // Don't detach our leaves here: Obsidian resets a detached leaf to its default location on the
+    // next load, even if the user moved it. Obsidian tears the views down on unload by itself.
     this.ctx?.diffs.closeAll();
     this.explorerIcons?.disable();
     this.explorerIcons = null;
@@ -673,7 +673,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Show hidden files")
       .setDesc(
-        "Obsidian hides dot-files (.mcp.json, .gitignore, .obsidian/…) from the explorer. Turn this on " +
+        "Obsidian hides dot-files (.mcp.json, .gitignore, your config folder…) from the explorer. Turn this on " +
           "to open a Hidden files panel in the left sidebar — a tree of the editable dot-files; click one " +
           "to edit it. Hidden files are not auto-saved — press Mod+S to save your changes. Uses the same " +
           "file icons as the explorer when those are on. Desktop only.",

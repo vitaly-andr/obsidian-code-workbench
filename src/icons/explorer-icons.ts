@@ -38,8 +38,8 @@ export class ExplorerIcons {
     this.observer?.disconnect();
     this.observer = null;
     this.container = null;
-    document.querySelectorAll<HTMLElement>(`.${ICON_CLASS}`).forEach((el) => el.remove());
-    document
+    activeDocument.querySelectorAll<HTMLElement>(`.${ICON_CLASS}`).forEach((el) => el.remove());
+    activeDocument
       .querySelectorAll<HTMLElement>(`[${NAME_ATTR}]`)
       .forEach((el) => el.removeAttribute(NAME_ATTR));
   }
@@ -51,7 +51,7 @@ export class ExplorerIcons {
   }
 
   private attach(): void {
-    const container = document.querySelector<HTMLElement>(EXPLORER);
+    const container = activeDocument.querySelector<HTMLElement>(EXPLORER);
     if (!container) return;
     if (container !== this.container) {
       this.observer?.disconnect();
@@ -95,7 +95,7 @@ export class ExplorerIcons {
 
     let span = el.querySelector<HTMLElement>(`:scope > .${ICON_CLASS}`);
     if (!span) {
-      span = document.createElement("span");
+      span = activeDocument.createElement("span");
       span.className = ICON_CLASS;
       // Place the icon just before the label — after the folder's collapse chevron, if any.
       const content = el.querySelector(

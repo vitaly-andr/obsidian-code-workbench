@@ -99,7 +99,7 @@ export class CompanionDispatcher {
         if (typeof p.name !== "string" || p.name.length === 0) {
           throw new RpcError(ERROR_CODES.INVALID_REQUEST, "missing tool name");
         }
-        const args = isObject(p.arguments) ? (p.arguments as Record<string, unknown>) : {};
+        const args = isObject(p.arguments) ? p.arguments : {};
         return this.registry.call(p.name, args, this.ctx, signal);
       }
       default:

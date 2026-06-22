@@ -103,7 +103,7 @@ export class CompanionServer {
     const chunks: Buffer[] = [];
     let total = 0;
     let finished = false;
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       if (finished) return;
       finished = true;
       controller.abort();
@@ -113,7 +113,7 @@ export class CompanionServer {
 
     const done = () => {
       finished = true;
-      clearTimeout(timer);
+      window.clearTimeout(timer);
     };
 
     req.on("aborted", () => controller.abort());
