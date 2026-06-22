@@ -5,12 +5,17 @@
 // produces syntax-highlight decorations; a linter reads the SAME tree for error/missing-node
 // diagnostics (no second parse). Highlighting bypasses CodeMirror's Lezer language facet entirely,
 // which is what lets one engine cover every language.
+//
+// Offsets: web-tree-sitter (0.26) parses the JS string as UTF-16, so node.startIndex/endIndex are
+// already UTF-16 code-unit indices — i.e. exactly CodeMirror/JS string positions. Use them directly.
+// Do NOT remap them through a UTF-8 byte→char table: that double-counts multi-byte characters and
+// shifts every highlight/diagnostic after the first non-ASCII character (cyrillic, CJK, emoji…).
+// Verified: parsing {"k":"Гд"} reports the value string at [6,10) (char indices), not [6,12) (bytes).
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
 import { Extension, RangeSetBuilder } from "@codemirror/state";
 import { linter, lintGutter } from "@codemirror/lint";
 import type { Tree } from "web-tree-sitter";
 import type { LoadedGrammar } from "./loader";
-import { makeByteToChar } from "./byte-offsets";
 import { captureClass } from "./highlight-map";
 import { collectSyntaxErrors } from "./diagnostics";
 import { normalizeLang } from "./registry";
@@ -40,18 +45,17 @@ class TreeHighlighter {
     this.tree = this.grammar.parser.parse(text);
     if (!this.tree) return Decoration.none;
 
-    const toChar = makeByteToChar(text);
     const marks: Mark[] = [];
     if (this.grammar.query) {
       for (const cap of this.grammar.query.captures(this.tree.rootNode)) {
         const cls = captureClass(cap.name);
         if (!cls) continue;
-        const from = toChar(cap.node.startIndex);
-        const to = toChar(cap.node.endIndex);
+        const from = cap.node.startIndex;
+        const to = cap.node.endIndex;
         if (to > from) marks.push({ from, to, cls });
       }
     }
-    if (this.grammar.injections) this.highlightInjections(text, toChar, marks);
+    if (this.grammar.injections) this.highlightInjections(text, marks);
     if (!marks.length) return Decoration.none;
 
     // RangeSetBuilder needs ascending `from`. For equal `from`, longer-first so the narrower (more
@@ -67,9 +71,10 @@ class TreeHighlighter {
     return builder.finish();
   }
 
-  // Colour embedded-language regions (frontmatter/script/style) with their own grammars, mapping
-  // each capture from the region's byte offsets back to absolute document positions.
-  private highlightInjections(text: string, toChar: (b: number) => number, marks: Mark[]): void {
+  // Colour embedded-language regions (frontmatter/script/style) with their own grammars. The injected
+  // grammar parses just the region text, so its node indices are relative to that slice — shift them
+  // back to absolute document positions with the region's start (all UTF-16 char indices, see header).
+  private highlightInjections(text: string, marks: Mark[]): void {
     const inj = this.grammar.injections;
     if (!inj || !this.tree) return;
     for (const match of inj.query.matches(this.tree.rootNode)) {
@@ -82,17 +87,16 @@ class TreeHighlighter {
       if (!lang) continue;
       const injected = inj.grammars.get(normalizeLang(lang));
       if (!injected || !injected.query) continue;
-      const startChar = toChar(content.node.startIndex);
-      const regionText = text.slice(startChar, toChar(content.node.endIndex));
+      const startChar = content.node.startIndex;
+      const regionText = text.slice(startChar, content.node.endIndex);
       const sub = injected.parser.parse(regionText);
       if (!sub) continue;
       try {
-        const subToChar = makeByteToChar(regionText);
         for (const cap of injected.query.captures(sub.rootNode)) {
           const cls = captureClass(cap.name);
           if (!cls) continue;
-          const from = startChar + subToChar(cap.node.startIndex);
-          const to = startChar + subToChar(cap.node.endIndex);
+          const from = startChar + cap.node.startIndex;
+          const to = startChar + cap.node.endIndex;
           if (to > from) marks.push({ from, to, cls });
         }
       } finally {

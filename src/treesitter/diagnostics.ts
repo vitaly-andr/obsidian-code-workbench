@@ -6,16 +6,15 @@
 // ones that are StreamLanguage-only today (bash, ruby, lua, swift…) and so have no error underlines.
 import { Diagnostic } from "@codemirror/lint";
 import type { Tree } from "web-tree-sitter";
-import { makeByteToChar } from "./byte-offsets";
 
 const MAX_DIAGNOSTICS = 100;
 
-// Walk the tree collecting ERROR and MISSING nodes as CodeMirror diagnostics. Positions are
-// translated from tree-sitter's UTF-8 byte offsets to CodeMirror's UTF-16 char positions.
-// Pruning: a clean subtree has hasError === false, so whole branches are skipped; we stop at the
-// first error/missing node on each path rather than descending into the broken fragment.
+// Walk the tree collecting ERROR and MISSING nodes as CodeMirror diagnostics. web-tree-sitter parses
+// the JS string as UTF-16, so node.startIndex/endIndex are already UTF-16 char positions (= CodeMirror
+// offsets) — used directly, no byte→char remap (see tree-extensions.ts header). Pruning: a clean
+// subtree has hasError === false, so whole branches are skipped; we stop at the first error/missing
+// node on each path rather than descending into the broken fragment.
 export function collectSyntaxErrors(tree: Tree, text: string): Diagnostic[] {
-  const toChar = makeByteToChar(text);
   const docLen = text.length;
   const out: Diagnostic[] = [];
   const cursor = tree.walk();
@@ -24,9 +23,9 @@ export function collectSyntaxErrors(tree: Tree, text: string): Diagnostic[] {
     if (out.length >= MAX_DIAGNOSTICS) return;
     const node = cursor.currentNode;
     if (node.isError || node.isMissing) {
-      const from = toChar(node.startIndex);
+      const from = node.startIndex;
       // A MISSING node is zero-width; give it a 1-char span so the underline is visible.
-      let to = toChar(node.endIndex);
+      let to = node.endIndex;
       if (to <= from) to = Math.min(from + 1, docLen);
       out.push({
         from,
