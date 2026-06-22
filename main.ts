@@ -4,6 +4,7 @@
 import { App, Notice, Plugin, PluginSettingTab, Setting, TFile } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import { randomUUID } from "crypto";
+import * as path from "path";
 import { IdeContext } from "./src/context";
 import { DiffManager } from "./src/diff-manager";
 import { LockFile } from "./src/server/lockfile";
@@ -16,10 +17,19 @@ import { CODE_VIEW_EXTENSIONS, CodeView } from "./src/views/code-view";
 import { GrammarLoader } from "./src/treesitter/loader";
 import { FormatService } from "./src/format/format-service";
 import { DiffView } from "./src/views/diff-view";
-import { CODE_VIEW_TYPE, DIFF_VIEW_TYPE } from "./src/views/view-types";
+import {
+  CODE_VIEW_TYPE,
+  DIFF_VIEW_TYPE,
+  HIDDEN_FILE_VIEW_TYPE,
+  HIDDEN_TREE_VIEW_TYPE,
+} from "./src/views/view-types";
 import { vaultBasePath } from "./src/util/paths";
 import { IconLoader } from "./src/icons/icon-loader";
 import { ExplorerIcons } from "./src/icons/explorer-icons";
+import { Companion } from "./src/mcp-http/companion";
+import { HiddenFileView } from "./src/views/hidden-file-view";
+import { HiddenFilesView } from "./src/views/hidden-files-view";
+import { HiddenEntry, listHiddenFiles } from "./src/views/hidden-files";
 
 // window.open is unreliable in Obsidian's renderer; open external URLs through Electron's shell,
 // falling back to window.open.
@@ -46,12 +56,18 @@ interface CodeWorkbenchSettings {
   treeSitter: boolean;
   // Show Material file/folder icons in the explorer. SVGs download on first use.
   fileIcons: boolean;
+  // Opt-in: expose vault read/write tools to the Claude model over the companion MCP server.
+  vaultTools: boolean;
+  // Opt-in: surface the vault's hidden (dot) files in settings so they can be opened and edited.
+  showHiddenFiles: boolean;
 }
 
 const DEFAULT_SETTINGS: CodeWorkbenchSettings = {
   shareSelection: true,
   treeSitter: true,
   fileIcons: true,
+  vaultTools: false,
+  showHiddenFiles: false,
 };
 
 export default class CodeWorkbenchPlugin extends Plugin {
@@ -63,6 +79,8 @@ export default class CodeWorkbenchPlugin extends Plugin {
   private port = 0;
   private connected = false;
   private explorerIcons: ExplorerIcons | null = null;
+  private companion: Companion | null = null;
+  private iconLoader: IconLoader | null = null;
 
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -84,6 +102,8 @@ export default class CodeWorkbenchPlugin extends Plugin {
     this.addSettingTab(new CodeWorkbenchSettingTab(this.app, this));
 
     this.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf));
+    this.registerView(HIDDEN_FILE_VIEW_TYPE, (leaf) => new HiddenFileView(leaf));
+    this.registerView(HIDDEN_TREE_VIEW_TYPE, (leaf) => new HiddenFilesView(leaf, this));
     // tree-sitter grammars are cached under the plugin's own data folder.
     const grammarLoader = new GrammarLoader(
       this.app.vault.adapter,
@@ -111,11 +131,11 @@ export default class CodeWorkbenchPlugin extends Plugin {
 
     // File-type icons in the explorer. Material icons are fetched on demand (same lazy/cached
     // pattern as grammars) and painted onto the nav rows.
-    const iconLoader = new IconLoader(
+    this.iconLoader = new IconLoader(
       this.app.vault.adapter,
       `${this.app.vault.configDir}/plugins/${this.manifest.id}/icons`,
     );
-    this.explorerIcons = new ExplorerIcons(this.app, iconLoader);
+    this.explorerIcons = new ExplorerIcons(this.app, this.iconLoader);
     if (this.settings.fileIcons) this.explorerIcons.enable();
     // The explorer leaf is built after onload and can be rebuilt later; repaint once the workspace
     // is ready and whenever the layout or the file tree changes.
@@ -216,6 +236,29 @@ export default class CodeWorkbenchPlugin extends Plugin {
     } catch (e) {
       error("failed to start IDE integration; it will retry on next load", e);
     }
+
+    // Companion MCP server: exposes vault read/write tools to the Claude model over a separate
+    // loopback HTTP server. Opt-in via the "Vault tools (Claude)" setting; independent of /ide.
+    const vaultRoot = vaultBasePath(this.app);
+    if (vaultRoot) {
+      const companion = new Companion({
+        app: this.app,
+        diffs: ctx.diffs,
+        pluginVersion: this.manifest.version,
+        pluginDir: path.join(vaultRoot, this.app.vault.configDir, "plugins", this.manifest.id),
+        vaultRoot,
+      });
+      companion.onStatusChange = () => this.refreshStatus();
+      this.companion = companion;
+      if (this.settings.vaultTools) {
+        await companion.start().catch((e) => warn("companion start failed", e));
+      }
+    }
+
+    // Restore the hidden-files panel if it was left on.
+    if (this.settings.showHiddenFiles) {
+      this.app.workspace.onLayoutReady(() => void this.openHiddenFilesPanel());
+    }
   }
 
   onunload(): void {
@@ -223,11 +266,16 @@ export default class CodeWorkbenchPlugin extends Plugin {
     // is best-effort.
     void this.lock?.remove().catch((e) => warn("lock removal failed", e));
     void this.server?.stop().catch((e) => warn("server stop failed", e));
+    void this.companion?.stop().catch((e) => warn("companion stop failed", e));
+    this.app.workspace.detachLeavesOfType(HIDDEN_TREE_VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(HIDDEN_FILE_VIEW_TYPE);
     this.ctx?.diffs.closeAll();
     this.explorerIcons?.disable();
     this.explorerIcons = null;
     this.lock = null;
     this.server = null;
+    this.companion = null;
+    this.iconLoader = null;
     this.ctx = null;
   }
 
@@ -237,9 +285,90 @@ export default class CodeWorkbenchPlugin extends Plugin {
   }
 
   // Live toggle from the settings tab: attach + paint, or strip the explorer icons immediately.
+  // Also repaint the hidden-files panel so its icons match.
   setFileIcons(on: boolean): void {
     if (on) this.explorerIcons?.enable();
     else this.explorerIcons?.disable();
+    this.refreshHiddenTree();
+  }
+
+  // Live toggle from the settings tab: start or stop the companion vault-tools server.
+  async setVaultTools(on: boolean): Promise<void> {
+    try {
+      if (on) await this.companion?.start();
+      else await this.companion?.stop();
+    } catch (e) {
+      warn("companion toggle failed", e);
+      new Notice("Code Workbench: the vault-tools server could not be started");
+    }
+  }
+
+  // Live toggle from the settings tab: open or close the hidden-files sidebar panel.
+  async setShowHiddenFiles(on: boolean): Promise<void> {
+    try {
+      if (on) await this.openHiddenFilesPanel();
+      else this.app.workspace.detachLeavesOfType(HIDDEN_TREE_VIEW_TYPE);
+    } catch (e) {
+      warn("hidden-files panel toggle failed", e);
+    }
+  }
+
+  // Reveal the hidden-files panel in the left sidebar (reusing an existing one if already open).
+  async openHiddenFilesPanel(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(HIDDEN_TREE_VIEW_TYPE);
+    if (existing.length > 0) {
+      await this.app.workspace.revealLeaf(existing[0]);
+      return;
+    }
+    const leaf = this.app.workspace.getLeftLeaf(false);
+    if (!leaf) return;
+    await leaf.setViewState({ type: HIDDEN_TREE_VIEW_TYPE, active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  // Re-scan any open hidden-files panel — used when the file-icons setting changes.
+  refreshHiddenTree(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(HIDDEN_TREE_VIEW_TYPE)) {
+      if (leaf.view instanceof HiddenFilesView) void leaf.view.refresh();
+    }
+  }
+
+  // HiddenFilesHost: the vault's hidden (dot) files for the panel. Obsidian hides these from the
+  // explorer; only editable text files are listed (binary/oversized are filtered out).
+  async listHiddenFiles(): Promise<HiddenEntry[]> {
+    const base = vaultBasePath(this.app);
+    return base ? listHiddenFiles(base) : [];
+  }
+
+  // HiddenFilesHost: the icon loader (null before onload finishes) and whether file icons are on.
+  getIconLoader(): IconLoader | null {
+    return this.iconLoader;
+  }
+
+  fileIconsEnabled(): boolean {
+    return this.settings.fileIcons;
+  }
+
+  // Open one hidden text file in the in-app editor.
+  async openHiddenFile(abs: string): Promise<void> {
+    try {
+      const leaf = this.app.workspace.getLeaf(true);
+      await leaf.setViewState({ type: HIDDEN_FILE_VIEW_TYPE, active: true, state: { path: abs } });
+      await this.app.workspace.revealLeaf(leaf);
+    } catch (e) {
+      warn("opening hidden file failed", e);
+      new Notice(`Code Workbench: couldn't open ${abs}`);
+    }
+  }
+
+  // The companion port, or 0 when it is not running.
+  companionPort(): number {
+    return this.companion?.getPort() ?? 0;
+  }
+
+  // The manual `claude mcp add` command for the companion, or null when not running.
+  companionCommand(): string | null {
+    return this.companion?.manualAddCommand() ?? null;
   }
 
   private refreshStatus(): void {
@@ -540,6 +669,54 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
           await this.plugin.saveData(this.plugin.settings);
         }),
       );
+
+    new Setting(containerEl)
+      .setName("Show hidden files")
+      .setDesc(
+        "Obsidian hides dot-files (.mcp.json, .gitignore, .obsidian/…) from the explorer. Turn this on " +
+          "to open a Hidden files panel in the left sidebar — a tree of the editable dot-files; click one " +
+          "to edit it. Hidden files are not auto-saved — press Mod+S to save your changes. Uses the same " +
+          "file icons as the explorer when those are on. Desktop only.",
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.showHiddenFiles).onChange(async (value) => {
+          this.plugin.settings.showHiddenFiles = value;
+          await this.plugin.saveData(this.plugin.settings);
+          await this.plugin.setShowHiddenFiles(value);
+        }),
+      );
+
+    new Setting(containerEl).setName("Vault tools for Claude").setHeading();
+    new Setting(containerEl)
+      .setName("Vault tools (Claude)")
+      .setDesc(
+        "Let Claude read and safely maintain this vault — backlinks, search, frontmatter, " +
+          "link-preserving rename, and trash delete — as model-callable tools. Off by default. Every write " +
+          "is shown for your approval before anything changes. Local-only and desktop-only.",
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.vaultTools).onChange(async (value) => {
+          this.plugin.settings.vaultTools = value;
+          await this.plugin.saveData(this.plugin.settings);
+          await this.plugin.setVaultTools(value);
+          this.display();
+        }),
+      );
+    if (this.plugin.settings.vaultTools) {
+      const cmd = this.plugin.companionCommand();
+      const vt = containerEl.createEl("p", { cls: "setting-item-description" });
+      if (cmd) {
+        vt.createSpan({
+          text:
+            `Connected automatically: a project .mcp.json is written to this vault, so a fresh ` +
+            `"claude" session in the vault folder lists the obsidian-vault tools after a one-time ` +
+            `approval. Manual fallback:`,
+        });
+        containerEl.createEl("pre", { cls: "cw-mcp-cmd" }).createEl("code", { text: cmd });
+      } else {
+        vt.setText("Starting the companion server…");
+      }
+    }
 
     new Setting(containerEl).setName("Connection").setDesc(this.plugin.statusText());
 

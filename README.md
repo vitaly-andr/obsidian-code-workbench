@@ -31,6 +31,11 @@ Keep/Reject diff you control.
 - **Launch Claude in one click.** Start the CLI in your vault from the status bar or settings; it
   opens your terminal in the right folder.
 - **File-type icons.** Material file and folder icons in the explorer.
+- **Vault tools for Claude.** Opt in to let Claude read and maintain the vault through
+  model-callable tools — backlinks, search, frontmatter, link-preserving rename, trash delete —
+  with every write shown for your approval. See [Vault tools for Claude](#vault-tools-for-claude).
+- **Edit hidden files.** A *Hidden files* sidebar panel lists the dot-files Obsidian normally hides
+  (`.mcp.json`, `.gitignore`, `.obsidian/…`) as a tree and opens them in the editor.
 
 <img src="docs/diff.png" alt="A Claude edit shown as a Keep / Reject diff" width="100%">
 
@@ -169,6 +174,29 @@ Copy `manifest.json`, `main.js`, and `styles.css` into
 Claude also reads the current selection, the open notes, and the workspace root through the
 connection.
 
+## Vault tools for Claude
+
+Turn on **Vault tools (Claude)** in settings to let Claude read and maintain this vault through
+model-callable tools, alongside the editor integration. Off by default, desktop only. The plugin
+runs a second local server (loopback HTTP, separate from the editor's WebSocket) and writes a project
+`.mcp.json` in the vault folder, so a `claude` session started there picks the tools up after a
+one-time approval. The settings panel also shows a manual `claude mcp add` command as a fallback.
+
+Read tools use Obsidian's own link resolver and live cache, so they are accurate where `grep` is not:
+`getBacklinks`, `getOutgoingLinks`, `resolveWikilink`, `getFrontmatter`, `searchVault`,
+`listFilesInFolder`, `getDailyNote`, `getActiveNoteContent`. `searchVault` ranks notes by title,
+heading, tag, and frontmatter; full text inside note bodies stays with `ripgrep`, which `claude`
+already runs well.
+
+Write tools go through the Obsidian vault API and are **shown for your approval before they apply**:
+`createNote`, `appendToNote`, `updateFrontmatter`, `renameNote` (updates every inbound `[[link]]`),
+and `deleteNote` (to trash, recoverable). There is no full-body overwrite tool — rewriting a note's
+contents stays on the editor's Keep/Reject diff.
+
+Safety: the server binds to loopback only, requires a per-session bearer token (rejected even on
+loopback when missing or wrong), and checks the request origin. Writes are confined to the vault, run
+only through Obsidian, and never apply without your approval.
+
 ## How it works
 
 The plugin runs a loopback WebSocket server and writes a discovery lock file to
@@ -176,11 +204,16 @@ The plugin runs a loopback WebSocket server and writes a discovery lock file to
 per-session token, and speaks JSON-RPC 2.0 / MCP. On an accepted diff the plugin returns the approved
 content and the CLI performs the write, so there is a single writer and no race.
 
+The optional vault-tools integration is a second, separate MCP server over loopback HTTP with its own
+per-session token. It runs only while **Vault tools (Claude)** is on, and its token store stays in the
+plugin's data folder, not in the editor's discovery directory.
+
 ## Privacy
 
 No telemetry. Your code stays on your machine. The only network use is downloading language grammars
 and formatters once, on demand, from this project's GitHub releases. Turn off **Enable syntax
-highlighting** to avoid even that.
+highlighting** to avoid even that. The vault-tools server, when enabled, is loopback-only and
+token-authenticated; nothing it exposes leaves your machine.
 
 ## Scope
 

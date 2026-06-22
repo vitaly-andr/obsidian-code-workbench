@@ -8,6 +8,9 @@ main.js
 # Obsidian plugin local test vault
 test-vault/
 
+# Obsidian config for opening this repo as a vault (dev convenience, not part of the plugin)
+.obsidian/
+
 # Editor / agent local state (may hold credentials)
 .claude/settings.local.json
 

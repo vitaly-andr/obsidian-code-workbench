@@ -183,6 +183,36 @@
   white-space: nowrap;
 }
 
+/* Hidden-files tree panel (sidebar): rendered with Obsidian's nav/tree classes so it matches the
+   explorer; we add only the collapse behavior for our own chevron and let the theme do the rest. */
+.cw-hidden-tree .tree-item.nav-folder.is-collapsed > .tree-item-children {
+  display: none;
+}
+.cw-hidden-tree .cw-tree-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--text-faint);
+  transition: transform 100ms ease;
+}
+.cw-hidden-tree .cw-tree-chevron svg {
+  width: 14px;
+  height: 14px;
+}
+.cw-hidden-tree .nav-folder:not(.is-collapsed) > .tree-item-self .cw-tree-chevron {
+  transform: rotate(90deg);
+}
+
+/* Editable hidden-file view: let the CodeMirror editor fill the leaf. */
+.cw-hidden-file {
+  height: 100%;
+}
+.cw-hidden-file .cm-editor {
+  height: 100%;
+}
+
 /* File-type icons in the explorer (Material icon set, fetched on demand and painted as a
    background-image). The span is only present while the "File type icons" setting is on. */
 .cw-nav-icon {

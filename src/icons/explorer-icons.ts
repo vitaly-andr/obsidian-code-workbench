@@ -8,7 +8,8 @@
 // IconLoader; when one lands every visible row using that icon is repainted. A MutationObserver
 // re-decorates on virtual scroll, folder expand/collapse, and renames.
 import { App } from "obsidian";
-import { BY_EXT, BY_FOLDER, BY_NAME, DEFAULT_FILE, DEFAULT_FOLDER } from "../icon-map";
+import { DEFAULT_FILE, DEFAULT_FOLDER } from "../icon-map";
+import { fileIconName, folderIconName } from "./icon-names";
 import type { IconLoader } from "./icon-loader";
 
 const ICON_CLASS = "cw-nav-icon";
@@ -129,22 +130,11 @@ export class ExplorerIcons {
   }
 
   private fileIcon(path: string): string {
-    const base = (path.split("/").pop() ?? path).toLowerCase();
-    if (BY_NAME[base]) return BY_NAME[base];
-    // Try the longest extension first: foo.schema.json -> "schema.json" before "json".
-    const parts = base.split(".");
-    for (let i = 1; i < parts.length; i++) {
-      const ext = parts.slice(i).join(".");
-      if (BY_EXT[ext]) return BY_EXT[ext];
-    }
-    return DEFAULT_FILE;
+    return fileIconName(path);
   }
 
   private folderIcon(path: string, el: HTMLElement): string {
-    const base = (path.split("/").pop() ?? path).toLowerCase();
-    const name = BY_FOLDER[base] ?? DEFAULT_FOLDER;
-    // The "-open" variant (folder-src-open, folder-open, …) is derived, never stored in the map.
     const collapsed = el.closest(".nav-folder")?.classList.contains("is-collapsed") ?? false;
-    return collapsed ? name : `${name}-open`;
+    return folderIconName(path, !collapsed);
   }
 }

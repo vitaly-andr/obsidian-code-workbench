@@ -24,6 +24,8 @@ const LICENSE_BANNER = `/*
 // We bundle only what Obsidian does not provide (ws, @codemirror/merge, lang-*).
 const external = [
   "obsidian",
+  // Obsidian bundles moment and hands it back through require("obsidian"); never bundle a second copy.
+  "moment",
   "electron",
   "@codemirror/autocomplete",
   "@codemirror/collab",
