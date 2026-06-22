@@ -4,10 +4,24 @@
 [![License: PolyForm Shield 1.0.0](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-blue)](LICENSE)
 ![Platform: desktop](https://img.shields.io/badge/platform-desktop-lightgrey)
 
-Obsidian only opens Markdown. Code Workbench adds an editor for code files: syntax highlighting,
-error diagnostics, and one-command formatting for 50+ languages. It also connects the
-[Claude Code](https://docs.claude.com/en/docs/claude-code) CLI, so Claude's edits arrive as a
-Keep/Reject diff you control.
+**Code Workbench turns Obsidian into a code editor and a Claude Code IDE**, so code and notes live
+in one app.
+
+Obsidian only opens Markdown; Code Workbench adds a real editor for code files. You get syntax
+highlighting and inline error diagnostics for 50+ languages (tree-sitter), one-command formatting
+(Prettier and native formatters), and a one-click launcher for the
+[Claude Code](https://docs.claude.com/en/docs/claude-code) CLI. When Claude edits your files, the
+changes open as a side-by-side Keep/Reject diff you control, so you review AI-written code right
+where you work.
+
+**New in 2.0 — Vault tools for Claude.** Opt in, and Claude can read and safely maintain your vault
+through model-callable MCP tools. It answers questions from your notes using Obsidian's own link
+graph (backlinks, wikilink resolution, frontmatter, and full search) and makes link-preserving
+changes — create, append, rename, delete to trash — each shown for your approval before it applies.
+The companion MCP server is local-only, desktop-only, and configured automatically.
+
+Model-agnostic: it speaks the Claude Code CLI protocol rather than a model API, so it runs with
+Claude, Kimi K2, or any compatible endpoint.
 
 > Other Claude plugins for Obsidian put an agent in a chat sidebar. They don't open, highlight, or
 > format your code files. Code Workbench is the editor, not another chat.

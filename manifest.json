@@ -3,7 +3,7 @@
   "name": "Code Workbench",
   "version": "2.0.1",
   "minAppVersion": "1.7.2",
-  "description": "Code editor and Claude Code IDE for your vault: syntax highlighting, error diagnostics, and formatting (JSON, YAML, Python, 50+ languages). Launch Claude in a terminal, share selection context over MCP, and accept or reject its edits as a diff.",
+  "description": "Editor and Claude Code IDE for your vault: syntax highlighting, diagnostics, and formatting for 50+ languages. Claude's edits as diffs; vault tools let Claude read and edit your notes via MCP.",
   "author": "Vitaly Andrianov",
   "fundingUrl": "https://github.com/vitaly-andr/obsidian-code-workbench/blob/main/SUPPORT.md",
   "isDesktopOnly": true
