@@ -14,10 +14,10 @@ and a one-click launcher for the [Claude Code](https://docs.claude.com/en/docs/c
 When Claude edits your files, the changes open as a side-by-side Keep/Reject diff you control, so you
 review AI-written code right where you work — no second window, no copy-paste.
 
-**New in 2.0 — Vault tools for Claude** turn the editor into an AI agent for your knowledge base. Opt
-in, and Claude can read and safely maintain your vault through model-callable MCP tools: it answers
+**New in 2.0 — Vault tools for Claude** turn the editor into an AI agent for your knowledge base. Turn it
+on, and Claude can read and safely maintain your vault through model-callable MCP tools: it answers
 questions straight from your notes using Obsidian's own link graph (backlinks, wikilink resolution,
-frontmatter, and full-text search) and makes link-preserving changes — create, append, rename,
+frontmatter, and metadata search) and makes link-preserving changes — create, append, rename,
 delete to trash — each shown for your approval before it applies. The companion MCP server runs
 locally, on the desktop, and sets itself up automatically.
 
