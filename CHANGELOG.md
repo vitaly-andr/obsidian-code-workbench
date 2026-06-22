@@ -4,6 +4,18 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [2.0.0] - 2026-06-22
+
+### Added
+- Vault tools for Claude (opt-in, off by default). Claude can read and safely maintain this vault
+  through model-callable tools over a local companion server, set up automatically via a project
+  `.mcp.json`. Reads cover backlinks, outgoing links, wikilink resolution, frontmatter, metadata
+  search, folder listing, the daily note, and the active note. Writes go through the Obsidian vault
+  API and are shown for your approval first: create, append, update frontmatter, link-preserving
+  rename, and delete to trash. Loopback-only with a per-session token; desktop only.
+- Hidden files panel (opt-in): browse and edit the dot-files Obsidian normally hides (`.gitignore`,
+  `.obsidian/…`) in the editor, scoped to the vault.
+
 ## [1.2.2] - 2026-06-22
 
 ### Fixed
