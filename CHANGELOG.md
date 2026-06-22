@@ -4,6 +4,13 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [1.2.2] - 2026-06-22
+
+### Fixed
+- Syntax highlighting and error underlines no longer drift on lines with non-ASCII text (Cyrillic,
+  CJK, emoji). Tree-sitter node offsets are now mapped to editor positions directly, so colours and
+  underlines line up with the characters they mark.
+
 ## [1.2.1] - 2026-06-21
 
 ### Changed
