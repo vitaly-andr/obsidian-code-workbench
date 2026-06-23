@@ -4,22 +4,23 @@
 [![License: PolyForm Shield 1.0.0](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-blue)](LICENSE)
 ![Platform: desktop](https://img.shields.io/badge/platform-desktop-lightgrey)
 
-**Code Workbench turns Obsidian into a code editor and a Claude Code IDE**, so your code and your
-notes live in one app.
+**Code Workbench turns Obsidian into a real code editor and a Claude Code IDE.** Obsidian is the
+most comfortable place to keep notes, specs, and plans, but it only opens Markdown, so your code
+had to live somewhere else. Now your code and your notes sit in one app, with Claude working on both.
 
-Obsidian only opens Markdown; Code Workbench adds a real editor for code files. You get syntax
-highlighting and inline error diagnostics for 50+ languages — TypeScript, Python, Go, Rust, JSON,
-YAML, and more — powered by tree-sitter, one-command formatting with Prettier and native formatters,
-and a one-click launcher for the [Claude Code](https://docs.claude.com/en/docs/claude-code) CLI.
-When Claude edits your files, the changes open as a side-by-side Keep/Reject diff you control, so you
-review AI-written code right where you work — no second window, no copy-paste.
+On the code side, you get syntax highlighting and inline error diagnostics for 50+ languages
+(TypeScript, Python, Go, Rust, JSON, YAML, and more) powered by tree-sitter, one-command formatting
+with Prettier and native formatters, and a one-click launcher: it opens a terminal in your vault and
+starts the [Claude Code](https://docs.claude.com/en/docs/claude-code) CLI already connected to
+Obsidian, with no `/ide` step. When Claude edits your files, the changes open as a side-by-side
+Keep/Reject diff you control, so you review AI-written code right where you work, next to your notes.
 
-**New in 2.0 — Vault tools for Claude** turn the editor into an AI agent for your knowledge base. Turn it
-on, and Claude can read and safely maintain your vault through model-callable MCP tools: it answers
-questions straight from your notes using Obsidian's own link graph (backlinks, wikilink resolution,
-frontmatter, and metadata search) and makes link-preserving changes — create, append, rename,
-delete to trash — each shown for your approval before it applies. The companion MCP server runs
-locally, on the desktop, and sets itself up automatically.
+**New in 2.0 — Vault tools for Claude** work the other direction: Claude can read and maintain your
+knowledge base itself. Turn them on, and Claude answers questions straight from your notes using
+Obsidian's own link graph (backlinks, wikilink resolution, frontmatter, and metadata search) and
+makes link-preserving changes (create, append, rename, delete to trash), each shown for your
+approval before it applies. The companion MCP server runs locally, on the desktop, and sets itself
+up automatically.
 
 Code Workbench speaks the Claude Code CLI protocol rather than one model's API, so it's
 model-agnostic: use it with Claude, Kimi K2, DeepSeek, GLM, or any Anthropic-compatible endpoint
@@ -43,7 +44,7 @@ your CLI points at.
 - **Accept or reject Claude's edits.** A proposed change opens as a side-by-side diff. Keep it or
   reject it, and edit the proposed side first if you want. Nothing is written until you keep it.
 - **Works with any model.** It speaks the Claude Code CLI protocol, not a model API, so it runs with
-  Claude, Kimi K2, or any Anthropic-compatible endpoint you use through the CLI.
+  Claude, Kimi K2, DeepSeek, GLM, or any Anthropic-compatible endpoint you use through the CLI.
 - **Launch Claude in one click.** Start the CLI in your vault from the status bar or settings; it
   opens your terminal in the right folder.
 - **File-type icons.** Material file and folder icons in the explorer.
@@ -56,6 +57,8 @@ your CLI points at.
 <img src="docs/diff.png" alt="A Claude edit shown as a Keep / Reject diff" width="100%">
 
 <img src="docs/file-icons.png" alt="Material file-type icons in the file explorer" width="100%">
+
+<img src="docs/hidden-files.png" alt="The Hidden files panel listing a vault's dot-files as a tree" width="330">
 
 ## Language support
 
@@ -127,9 +130,11 @@ for the richer tree-sitter highlighting and the diagnostics above.
    underlines.
 3. To format, open the Command Palette (`Ctrl/Cmd+P`), type **Format code file**, and run it. You
    can assign a hotkey under **Settings → Hotkeys**.
-4. Connect Claude: click **▶ Launch Claude** in the status bar (or **Run Claude in this vault** in
-   the plugin settings) to open a terminal in the vault and start `claude` (or run `claude`
-   yourself). Then run `/ide` and pick **Obsidian**; the status bar shows `Claude ●` once connected.
+4. Launch Claude: click **▶ Launch Claude** in the status bar (or **Run Claude in this vault** in
+   the plugin settings). It opens a terminal in the vault and starts `claude`, already connected to
+   Obsidian — the status bar shows `Claude ●`. Run `/ide` and pick **Obsidian** only if you start
+   `claude` yourself in a separate terminal, or to reconnect after updating or reloading the plugin
+   (the server restarts on a new port).
 5. Share a selection: select text and run **Add selection to Claude context** from the Command
    Palette to send it as an `@`-mention. With **Share selection automatically** on, the current
    selection is sent as it changes.
