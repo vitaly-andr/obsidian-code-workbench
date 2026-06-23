@@ -4,6 +4,15 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [2.0.3] - 2026-06-23
+
+### Fixed
+- The destructive confirm button (shown when Claude asks to delete a note) is back on
+  `setWarning()`. 2.0.2 had switched it to `setDestructive()` to clear a deprecation notice, but that
+  API only exists in Obsidian 1.13.0 — above the plugin's `minAppVersion` of 1.7.2 — so plugin review
+  flagged it as an unsupported API and it would have thrown on older Obsidian. `setWarning()` gives
+  the same red styling and works back to 1.7.2.
+
 ## [2.0.2] - 2026-06-23
 
 ### Fixed
