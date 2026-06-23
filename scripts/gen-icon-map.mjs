@@ -25,6 +25,10 @@ for (const [k, v] of Object.entries(m.folderNames || {})) {
 const byExt = m.fileExtensions || {};
 const byName = m.fileNames || {};
 const byFolder = m.folderNames || {};
+// Obsidian flags any hardcoded ".obsidian" — the config dir is user-renamable (Vault#configDir).
+// Drop the upstream ".obsidian" folder entry; the config-folder icon is assigned via configDir in
+// src/icons/icon-names.ts instead.
+delete byFolder[".obsidian"];
 
 const out =
   `// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0\n` +

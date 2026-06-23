@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
-import { promises as fs } from "fs";
 import * as path from "path";
 import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 import { EditorState, Extension } from "@codemirror/state";
@@ -26,9 +25,9 @@ function extensionOf(filePath: string): string {
 }
 
 // An editable CodeMirror view for files Obsidian doesn't index as notes (anything under a dotted
-// path). Reads and writes the file directly on disk by absolute path — desktop only, like the rest
-// of the plugin. Save with Mod+S (or the "Save hidden file" command). Mirrors CodeView's editor
-// setup but is not a TextFileView, so it doesn't need a vault TFile.
+// path). Reads and writes through the vault adapter, confined to the vault root — desktop only, like
+// the rest of the plugin. Save with Mod+S (or the "Save hidden file" command). Mirrors CodeView's
+// editor setup but is not a TextFileView, so it doesn't need a vault TFile.
 export class HiddenFileView extends ItemView {
   private editor: EditorView | null = null;
   private filePath = "";
@@ -53,16 +52,16 @@ export class HiddenFileView extends ItemView {
     return { path: this.filePath };
   }
 
-  // A hidden file is a dot-file INSIDE the vault folder. Reject any absolute path that resolves
-  // outside the vault root — reuses the confinement the companion vault tools rely on, so a
-  // persisted/restored leaf state can't point the editor at a file beyond the vault.
-  private inVault(absPath: string): boolean {
-    return vaultPathForAbsolute(this.app, absPath) !== null;
+  // A hidden file is a dot-file INSIDE the vault folder. Map an absolute path to its vault-relative
+  // form, or null if it resolves outside the vault — so a persisted/restored leaf state can't point
+  // the editor at a file beyond the vault root.
+  private relInVault(absPath: string): string | null {
+    return vaultPathForAbsolute(this.app, absPath);
   }
 
   async setState(state: HiddenFileState, result: ViewStateResult): Promise<void> {
     if (state && typeof state.path === "string") {
-      if (this.inVault(state.path)) {
+      if (this.relInVault(state.path) !== null) {
         this.filePath = state.path;
         await this.loadFile(state.path);
       } else {
@@ -74,9 +73,15 @@ export class HiddenFileView extends ItemView {
   }
 
   private async loadFile(absPath: string): Promise<void> {
+    const rel = this.relInVault(absPath);
+    if (rel === null) {
+      error("hidden file outside the vault refused", absPath);
+      new Notice("Code Workbench: that file is outside the vault");
+      return;
+    }
     let data = "";
     try {
-      data = await fs.readFile(absPath, "utf8");
+      data = await this.app.vault.adapter.read(rel);
     } catch (e) {
       error("hidden file read failed", e);
       new Notice(`Code Workbench: could not read ${absPath}`);
@@ -113,17 +118,18 @@ export class HiddenFileView extends ItemView {
     });
   }
 
-  // Write the editor contents back to disk.
+  // Write the editor contents back through the vault adapter.
   async save(): Promise<void> {
     if (!this.editor || !this.filePath) return;
     // Re-check on write: never overwrite a file outside the vault, even if filePath was set somehow.
-    if (!this.inVault(this.filePath)) {
+    const rel = this.relInVault(this.filePath);
+    if (rel === null) {
       new Notice("Code Workbench: refusing to save outside the vault");
       return;
     }
     const content = this.editor.state.doc.toString();
     try {
-      await fs.writeFile(this.filePath, content, "utf8");
+      await this.app.vault.adapter.write(rel, content);
       new Notice(`Code Workbench: saved ${path.basename(this.filePath)}`);
     } catch (e) {
       error("hidden file save failed", e);

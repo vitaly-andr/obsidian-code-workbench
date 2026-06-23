@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
+// Raw fs (not the vault adapter): the IDE lock file lives at $CLAUDE_CONFIG_DIR/ide or ~/.claude/ide,
+// outside the vault, which is where the Claude Code CLI looks for it (§4.1). The vault API can't
+// reach that path.
 import { promises as fs } from "fs";
 import * as os from "os";
 import * as path from "path";

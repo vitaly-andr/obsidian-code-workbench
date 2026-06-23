@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
+// Raw fs (not the vault adapter): this walker enumerates the dot-files Obsidian hides and needs
+// readdir withFileTypes plus a bounded head-read for the binary sniff, which the vault adapter does
+// not offer. Strictly confined to `vaultRoot` (the open vault); it never walks outside it.
 import { promises as fs } from "fs";
 import * as path from "path";
 

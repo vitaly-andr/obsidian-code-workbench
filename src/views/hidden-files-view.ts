@@ -88,7 +88,7 @@ export class HiddenFilesView extends ItemView {
     let iconSpan: HTMLElement | null = null;
     if (this.host.fileIconsEnabled()) {
       iconSpan = self.createSpan({ cls: "cw-nav-icon" });
-      void this.paintIcon(iconSpan, folderIconName(folder.path, expanded));
+      void this.paintIcon(iconSpan, folderIconName(folder.path, expanded, this.app.vault.configDir));
     }
     self.createDiv({ cls: "tree-item-inner nav-folder-title-content", text: folder.name });
 
@@ -98,7 +98,7 @@ export class HiddenFilesView extends ItemView {
       item.classList.toggle("is-collapsed", !willExpand);
       if (willExpand) this.expanded.add(folder.path);
       else this.expanded.delete(folder.path);
-      if (iconSpan) void this.paintIcon(iconSpan, folderIconName(folder.path, willExpand));
+      if (iconSpan) void this.paintIcon(iconSpan, folderIconName(folder.path, willExpand, this.app.vault.configDir));
     });
 
     this.renderChildren(folder, childrenEl);

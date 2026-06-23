@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
+// Raw fs (not the vault adapter): the companion token store and the generated header helper live in
+// the plugin's data folder, outside the vault note tree; the CLI reads them per connection.
 import { promises as fs } from "fs";
 import * as path from "path";
 import { warn } from "../util/log";

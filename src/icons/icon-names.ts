@@ -19,8 +19,11 @@ export function fileIconName(path: string): string {
 }
 
 // Folder icon by name; `open` selects the derived "-open" variant (never stored in the map).
-export function folderIconName(path: string, open: boolean): string {
+// `configDir` (Vault#configDir — default ".obsidian", but the user can rename it) gets the Obsidian
+// icon without hardcoding the config-folder name in the icon map.
+export function folderIconName(path: string, open: boolean, configDir?: string): string {
   const base = (path.split("/").pop() ?? path).toLowerCase();
-  const name = BY_FOLDER[base] ?? DEFAULT_FOLDER;
+  let name = BY_FOLDER[base] ?? DEFAULT_FOLDER;
+  if (configDir && base === configDir.toLowerCase()) name = "folder-obsidian";
   return open ? `${name}-open` : name;
 }

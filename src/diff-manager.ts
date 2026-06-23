@@ -2,8 +2,8 @@
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
 import { App } from "obsidian";
-import { promises as fs } from "fs";
 import { CancelledError } from "./protocol/errors";
+import { vaultPathForAbsolute } from "./util/paths";
 import { DiffRequest, DiffView } from "./views/diff-view";
 import { DIFF_VIEW_TYPE } from "./views/view-types";
 
@@ -24,12 +24,17 @@ export class DiffManager {
   constructor(private readonly app: App) {}
 
   async openDiff(params: OpenDiffParams, signal: AbortSignal): Promise<DiffResult> {
-    // The current on-disk contents are the diff base (the "old" side); missing file -> empty.
+    // The current on-disk contents are the diff base (the "old" side). Read through the vault
+    // adapter, which is scoped to the vault; the CLI only diffs files inside the open workspace.
+    // A path outside the vault, or a missing file, falls back to an empty base.
     let oldContents = "";
-    try {
-      oldContents = await fs.readFile(params.oldFilePath, "utf8");
-    } catch {
-      oldContents = "";
+    const rel = vaultPathForAbsolute(this.app, params.oldFilePath);
+    if (rel !== null) {
+      try {
+        oldContents = await this.app.vault.adapter.read(rel);
+      } catch {
+        oldContents = "";
+      }
     }
 
     const leaf = this.app.workspace.getLeaf(true);

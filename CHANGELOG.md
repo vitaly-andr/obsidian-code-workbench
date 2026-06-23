@@ -4,6 +4,15 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [2.0.2] - 2026-06-23
+
+### Fixed
+- More plugin-review cleanups. The destructive confirm button now uses `setDestructive()` instead of
+  the deprecated `setWarning()`; in-vault file access (the Hidden files editor and the Keep/Reject
+  diff base) goes through the vault adapter rather than raw `fs`, keeping it scoped to the vault; and
+  the config-folder icon is resolved via `Vault#configDir` instead of a hardcoded `.obsidian`, so a
+  renamed config folder still gets the right icon.
+
 ## [2.0.1] - 2026-06-22
 
 ### Fixed

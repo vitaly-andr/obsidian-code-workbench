@@ -135,6 +135,6 @@ export class ExplorerIcons {
 
   private folderIcon(path: string, el: HTMLElement): string {
     const collapsed = el.closest(".nav-folder")?.classList.contains("is-collapsed") ?? false;
-    return folderIconName(path, !collapsed);
+    return folderIconName(path, !collapsed, this.app.vault.configDir);
   }
 }
