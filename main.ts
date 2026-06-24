@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
-import { App, Notice, Plugin, PluginSettingTab, Setting, TFile } from "obsidian";
+import { App, Notice, Plugin, PluginSettingTab, Setting, TFile, setIcon } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import { randomUUID } from "crypto";
 import * as path from "path";
@@ -30,6 +30,8 @@ import { Companion } from "./src/mcp-http/companion";
 import { HiddenFileView } from "./src/views/hidden-file-view";
 import { HiddenFilesView } from "./src/views/hidden-files-view";
 import { HiddenEntry, listHiddenFiles } from "./src/views/hidden-files";
+import { getCurrentBranch, resolveRepository } from "./src/git/log";
+import type { CurrentBranch } from "./src/git/types";
 
 // window.open is unreliable in Obsidian's renderer; open external URLs through Electron's shell,
 // falling back to window.open.
@@ -81,6 +83,8 @@ export default class CodeWorkbenchPlugin extends Plugin {
   private explorerIcons: ExplorerIcons | null = null;
   private companion: Companion | null = null;
   private iconLoader: IconLoader | null = null;
+  private gitBranchEl: HTMLElement | null = null;
+  private gitRefreshTimer: number | null = null;
 
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -100,6 +104,15 @@ export default class CodeWorkbenchPlugin extends Plugin {
     this.registerDomEvent(this.statusEl, "click", () => void this.runClaude());
     this.refreshStatus();
     this.addSettingTab(new CodeWorkbenchSettingTab(this.app, this));
+
+    // Second status-bar item: the current git branch (or "no git"). Read lazily on relevant
+    // events, never on a timer.
+    this.gitBranchEl = this.addStatusBarItem();
+    this.gitBranchEl.addClass("cw-gitbranch");
+    this.registerDomEvent(window, "focus", () => this.scheduleGitBranchRefresh());
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.scheduleGitBranchRefresh()));
+    this.registerEvent(this.app.workspace.on("file-open", () => this.scheduleGitBranchRefresh()));
+    void this.refreshGitBranch();
 
     this.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf));
     this.registerView(HIDDEN_FILE_VIEW_TYPE, (leaf) => new HiddenFileView(leaf));
@@ -276,6 +289,8 @@ export default class CodeWorkbenchPlugin extends Plugin {
     this.server = null;
     this.companion = null;
     this.iconLoader = null;
+    if (this.gitRefreshTimer !== null) window.clearTimeout(this.gitRefreshTimer);
+    this.gitBranchEl = null;
     this.ctx = null;
   }
 
@@ -369,6 +384,60 @@ export default class CodeWorkbenchPlugin extends Plugin {
   // The manual `claude mcp add` command for the companion, or null when not running.
   companionCommand(): string | null {
     return this.companion?.manualAddCommand() ?? null;
+  }
+
+  // Coalesce bursts of events into a single git read.
+  private scheduleGitBranchRefresh(): void {
+    if (this.gitRefreshTimer !== null) window.clearTimeout(this.gitRefreshTimer);
+    this.gitRefreshTimer = window.setTimeout(() => {
+      this.gitRefreshTimer = null;
+      void this.refreshGitBranch();
+    }, 300);
+  }
+
+  private async refreshGitBranch(): Promise<void> {
+    if (!this.gitBranchEl) return;
+    const base = vaultBasePath(this.app);
+    if (!base) {
+      this.setGitBranch({ kind: "none", label: "no git", dirty: false });
+      return;
+    }
+    try {
+      const repo = await resolveRepository(base);
+      this.setGitBranch(await getCurrentBranch(repo));
+    } catch (e) {
+      warn("git branch refresh failed", e);
+      this.setGitBranch({ kind: "none", label: "no git", dirty: false });
+    }
+  }
+
+  private setGitBranch(branch: CurrentBranch): void {
+    if (!this.gitBranchEl) return;
+    const el = this.gitBranchEl;
+    el.empty();
+    el.classList.remove("is-branch", "is-detached", "is-dirty", "is-none");
+    setIcon(el.createSpan({ cls: "cw-gitbranch-icon" }), "git-branch");
+    el.createSpan({ cls: "cw-gitbranch-label", text: branch.label });
+    const status =
+      branch.kind === "none"
+        ? "is-none"
+        : branch.kind === "detached"
+          ? "is-detached"
+          : branch.dirty
+            ? "is-dirty"
+            : "is-branch";
+    el.classList.add(status);
+    el.setAttr(
+      "aria-label",
+      branch.kind === "none"
+        ? "Not a git repository"
+        : `Git branch: ${branch.label}` +
+            (branch.kind === "detached"
+              ? " (detached HEAD)"
+              : branch.dirty
+                ? " (uncommitted changes)"
+                : " (clean)"),
+    );
   }
 
   private refreshStatus(): void {
