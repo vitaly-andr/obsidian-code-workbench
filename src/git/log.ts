@@ -166,3 +166,18 @@ export async function loadCommitDetail(
   }
   return { branches, files };
 }
+
+// Old (parent) and new (commit) contents of a file at a commit, for a read-only diff.
+export async function loadFileDiff(
+  repo: RepositorySource,
+  hash: string,
+  path: string,
+): Promise<{ oldText: string; newText: string }> {
+  if (!repo.root || repo.state !== "ok") return { oldText: "", newText: "" };
+  const oldR = await runGit(repo.root, ["show", `${hash}^:${path}`]); // empty for added/root
+  const newR = await runGit(repo.root, ["show", `${hash}:${path}`]); // empty for deleted
+  return {
+    oldText: !oldR.failed && oldR.code === 0 ? oldR.stdout : "",
+    newText: !newR.failed && newR.code === 0 ? newR.stdout : "",
+  };
+}

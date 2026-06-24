@@ -152,6 +152,10 @@
   gap: 6px;
   align-items: center;
   font-size: var(--font-smaller);
+  cursor: pointer;
+}
+.cw-gg-file:hover {
+  background: var(--background-modifier-hover);
 }
 .cw-gg-file-status {
   flex: 0 0 auto;

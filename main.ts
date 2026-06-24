@@ -20,6 +20,7 @@ import { DiffView } from "./src/views/diff-view";
 import {
   CODE_VIEW_TYPE,
   DIFF_VIEW_TYPE,
+  GIT_DIFF_VIEW_TYPE,
   GIT_GRAPH_VIEW_TYPE,
   HIDDEN_FILE_VIEW_TYPE,
   HIDDEN_TREE_VIEW_TYPE,
@@ -31,6 +32,7 @@ import { Companion } from "./src/mcp-http/companion";
 import { HiddenFileView } from "./src/views/hidden-file-view";
 import { HiddenFilesView } from "./src/views/hidden-files-view";
 import { GitGraphView } from "./src/views/git-graph-view";
+import { GitDiffView } from "./src/views/git-diff-view";
 import { HiddenEntry, listHiddenFiles } from "./src/views/hidden-files";
 import { getCurrentBranch, resolveRepository } from "./src/git/log";
 import type { CurrentBranch } from "./src/git/types";
@@ -120,6 +122,7 @@ export default class CodeWorkbenchPlugin extends Plugin {
     this.registerView(HIDDEN_FILE_VIEW_TYPE, (leaf) => new HiddenFileView(leaf));
     this.registerView(HIDDEN_TREE_VIEW_TYPE, (leaf) => new HiddenFilesView(leaf, this));
     this.registerView(GIT_GRAPH_VIEW_TYPE, (leaf) => new GitGraphView(leaf));
+    this.registerView(GIT_DIFF_VIEW_TYPE, (leaf) => new GitDiffView(leaf));
     this.addRibbonIcon("git-branch", "Open git graph", () => void this.openGitGraphPanel());
     this.addCommand({
       id: "open-git-graph",

@@ -3,11 +3,12 @@
 
 import { ItemView, WorkspaceLeaf } from "obsidian";
 import { vaultBasePath } from "../util/paths";
-import { loadCommitDetail, loadCommits, resolveRepository } from "../git/log";
+import { loadCommitDetail, loadFileDiff, loadCommits, resolveRepository } from "../git/log";
 import { layoutGraph } from "../git-graph/layout";
 import type { GraphModel } from "../git-graph/layout.types";
 import type { CommitRecord, RepositorySource } from "../git/types";
-import { GIT_GRAPH_VIEW_TYPE } from "./view-types";
+import { GIT_DIFF_VIEW_TYPE, GIT_GRAPH_VIEW_TYPE } from "./view-types";
+import { GitDiffView } from "./git-diff-view";
 
 const ROW_H = 24; // px per commit row (kept in sync with .cw-gg-row in styles.css)
 const LANE_W = 14; // px per lane column
@@ -178,6 +179,25 @@ export class GitGraphView extends ItemView {
       const fr = files.createDiv({ cls: "cw-gg-file" });
       fr.createSpan({ cls: `cw-gg-file-status cw-gg-st-${f.status}`, text: f.status });
       fr.createSpan({ cls: "cw-gg-file-path", text: f.path, attr: { title: f.path } });
+      fr.addEventListener("click", () => void this.openFileDiff(hash, f.path));
     }
+  }
+
+  private async openFileDiff(hash: string, path: string): Promise<void> {
+    const repo = this.repo;
+    if (!repo) return;
+    const { oldText, newText } = await loadFileDiff(repo, hash, path);
+    const existing = this.app.workspace.getLeavesOfType(GIT_DIFF_VIEW_TYPE);
+    const leaf = existing[0] ?? this.app.workspace.getLeaf("tab");
+    await leaf.setViewState({ type: GIT_DIFF_VIEW_TYPE, active: true });
+    if (leaf.view instanceof GitDiffView) {
+      leaf.view.setData({
+        title: `${path.split("/").pop() ?? path} @ ${hash.slice(0, 7)}`,
+        path,
+        oldContents: oldText,
+        newContents: newText,
+      });
+    }
+    await this.app.workspace.revealLeaf(leaf);
   }
 }
