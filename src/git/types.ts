@@ -36,3 +36,13 @@ export interface CommitRecord {
   date: string; // committer date, ISO-8601
   subject: string;
 }
+
+// One line's blame, parsed from `git blame --line-porcelain`. Drives the inline annotation.
+export interface BlameLine {
+  line: number; // 1-based final line number
+  hash: string; // commit sha (all-zero for an uncommitted working-tree line)
+  author: string; // author name
+  epoch: number; // author time, unix seconds
+  summary: string; // commit subject
+  uncommitted: boolean; // true for a not-yet-committed local edit (zero hash)
+}

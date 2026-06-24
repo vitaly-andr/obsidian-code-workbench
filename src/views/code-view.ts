@@ -8,13 +8,16 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { SelectionPayload } from "../context";
 import { SelectionProvider } from "../tools/selection";
 import { grammarKeyForPath } from "../util/languages";
-import { absoluteForVaultPath, toFileUri } from "../util/paths";
+import { absoluteForVaultPath, toFileUri, vaultBasePath } from "../util/paths";
 import { CODE_VIEW_TYPE } from "./view-types";
 import { languageExtension, obsidianEditorTheme, obsidianHighlighting } from "./cm-theme";
 import { syntaxDiagnostics } from "./lezer-lint";
+import { blameAnnotation, setBlame } from "./blame-annotation";
 import { formatCode } from "../format/prettier-format";
 import { grammarForExtension } from "../treesitter/registry";
 import { treeSitterExtensions } from "../treesitter/tree-extensions";
+import { loadBlame, resolveRepository } from "../git/log";
+import type { RepositorySource } from "../git/types";
 import type { GrammarLoader } from "../treesitter/loader";
 import type { FormatService } from "../format/format-service";
 
@@ -28,15 +31,26 @@ export interface TreeSitterConfig {
   enabled: () => boolean;
 }
 
+// Optional git-blame wiring: a live read of the "git blame" setting. Absent or disabled => no
+// inline annotation. The blame read itself runs here (refreshBlame), lazily, never at plugin load.
+export interface BlameConfig {
+  enabled: () => boolean;
+}
+
 export class CodeView extends TextFileView implements SelectionProvider {
   private editor: EditorView | null = null;
   // Swappable language layer: Lezer/legacy first, upgraded to tree-sitter once a grammar loads.
   private readonly langLayer = new Compartment();
+  // The vault's repository, resolved once then cached (the vault is one repo). null until resolved.
+  private repo: RepositorySource | null = null;
+  // Debounce handle for re-blaming after edits.
+  private blameTimer: number | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
     private readonly ts?: TreeSitterConfig,
     private readonly formatService?: FormatService,
+    private readonly blame?: BlameConfig,
   ) {
     super(leaf);
   }
@@ -60,6 +74,10 @@ export class CodeView extends TextFileView implements SelectionProvider {
 
   clear(): void {
     this.data = "";
+    if (this.blameTimer !== null) {
+      window.clearTimeout(this.blameTimer);
+      this.blameTimer = null;
+    }
     this.editor?.destroy();
     this.editor = null;
     this.contentEl.empty();
@@ -78,10 +96,15 @@ export class CodeView extends TextFileView implements SelectionProvider {
       obsidianEditorTheme,
       obsidianHighlighting,
       EditorView.lineWrapping,
-      // Editable; persist edits through Obsidian's save.
+      // Editable; persist edits through Obsidian's save, and re-blame once the edits settle.
       EditorView.updateListener.of((u) => {
-        if (u.docChanged) this.requestSave();
+        if (u.docChanged) {
+          this.requestSave();
+          this.scheduleBlame();
+        }
       }),
+      // Inline current-line git blame (inert until refreshBlame delivers data).
+      blameAnnotation(),
       // Highlighting + diagnostics layer. Starts on the bundled Lezer/legacy grammar (instant), and
       // is swapped for tree-sitter once that grammar finishes downloading (maybeUpgradeToTreeSitter).
       this.langLayer.of(this.lezerLayer(ext)),
@@ -92,6 +115,7 @@ export class CodeView extends TextFileView implements SelectionProvider {
       parent: this.contentEl,
     });
     void this.maybeUpgradeToTreeSitter(ext, this.editor);
+    void this.refreshBlame(this.editor);
   }
 
   // Bundled Lezer/legacy highlighter plus its syntax-error underlines (the latter for lang-* only).
@@ -129,6 +153,42 @@ export class CodeView extends TextFileView implements SelectionProvider {
       ? treeSitterExtensions(grammar)
       : [languageExtension(ext) ?? [], treeSitterExtensions({ parser: grammar.parser, query: null })];
     view.dispatch({ effects: this.langLayer.reconfigure(layer) });
+  }
+
+  // Load `git blame` for the open file and push it into the editor. When blame is disabled it clears
+  // any annotation; when git/repo is unavailable or the file is untracked it simply leaves none.
+  private async refreshBlame(view: EditorView): Promise<void> {
+    if (!this.file) return;
+    if (!this.blame?.enabled()) {
+      view.dispatch({ effects: setBlame.of(null) });
+      return;
+    }
+    const abs = absoluteForVaultPath(this.app, this.file.path);
+    if (!abs) return;
+    if (!this.repo) {
+      const base = vaultBasePath(this.app);
+      this.repo = base ? await resolveRepository(base) : null;
+    }
+    if (!this.repo || this.repo.state !== "ok" || this.editor !== view) return;
+    const lines = await loadBlame(this.repo, abs);
+    if (this.editor !== view) return; // the file was switched while blaming
+    view.dispatch({ effects: setBlame.of(lines.length ? lines : null) });
+  }
+
+  // Re-apply the current blame setting to the live editor (used when the setting toggles).
+  applyBlame(): void {
+    if (this.editor) void this.refreshBlame(this.editor);
+  }
+
+  // Re-blame shortly after edits settle (line numbers shift; new lines read as uncommitted). The
+  // delay also lets Obsidian's save flush to disk, which `git blame` reads from.
+  private scheduleBlame(): void {
+    if (!this.blame?.enabled()) return;
+    if (this.blameTimer !== null) window.clearTimeout(this.blameTimer);
+    this.blameTimer = window.setTimeout(() => {
+      this.blameTimer = null;
+      if (this.editor) void this.refreshBlame(this.editor);
+    }, 1200);
   }
 
   getSelectionPayload(): SelectionPayload | null {

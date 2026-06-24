@@ -2,7 +2,7 @@
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
 import { execFile } from "child_process";
-import type { BranchIdentity, CommitRecord, CurrentBranch, Ref, RepositorySource } from "./types";
+import type { BlameLine, BranchIdentity, CommitRecord, CurrentBranch, Ref, RepositorySource } from "./types";
 
 // Run git with an argument array (never a shell string) and a fixed cwd, so no untrusted
 // text is interpreted by a shell. Never rejects: a non-zero exit is normal control flow.
@@ -165,6 +165,58 @@ export async function loadCommitDetail(
     }
   }
   return { branches, files };
+}
+
+// An uncommitted working-tree line blames to the all-zero sha.
+const ZERO_HASH = "0000000000000000000000000000000000000000";
+
+// Parse `git blame --line-porcelain` into per-line records. Pure (no I/O), so it is unit-testable.
+// The format repeats a header block for every line: a "<sha> <orig> <final> [group]" line, then
+// "author"/"author-time"/"summary"/… key-value lines, then a tab-prefixed content line that closes
+// the record.
+export function parseBlame(stdout: string): BlameLine[] {
+  const out: BlameLine[] = [];
+  let cur: { author?: string; epoch?: number; summary?: string } = {};
+  let hash = "";
+  let finalLine = 0;
+  for (const raw of stdout.split("\n")) {
+    if (raw.startsWith("\t")) {
+      out.push({
+        line: finalLine,
+        hash,
+        author: cur.author ?? "",
+        epoch: cur.epoch ?? 0,
+        summary: cur.summary ?? "",
+        uncommitted: hash === ZERO_HASH,
+      });
+      cur = {};
+      continue;
+    }
+    const sp = raw.indexOf(" ");
+    const key = sp === -1 ? raw : raw.slice(0, sp);
+    const val = sp === -1 ? "" : raw.slice(sp + 1);
+    if (/^[0-9a-f]{40}$/.test(key)) {
+      hash = key;
+      // "<sha> <orig-line> <final-line> [group-size]" — the final line number is the 2nd field.
+      finalLine = Number(val.split(" ")[1] ?? "0") || 0;
+    } else if (key === "author") {
+      cur.author = val;
+    } else if (key === "author-time") {
+      cur.epoch = Number(val) || 0;
+    } else if (key === "summary") {
+      cur.summary = val;
+    }
+  }
+  return out;
+}
+
+// Per-line blame for a file (absolute path), for the inline annotation. Empty when git is missing,
+// the repo is unreadable, or the file is untracked — every "no blame" case looks the same here.
+export async function loadBlame(repo: RepositorySource, absPath: string): Promise<BlameLine[]> {
+  if (!repo.root || repo.state !== "ok") return [];
+  const res = await runGit(repo.root, ["blame", "--line-porcelain", "--", absPath]);
+  if (res.failed || res.code !== 0) return [];
+  return parseBlame(res.stdout);
 }
 
 // Old (parent) and new (commit) contents of a file at a commit, for a read-only diff.

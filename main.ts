@@ -60,6 +60,8 @@ interface CodeWorkbenchSettings {
   shareSelection: boolean;
   // Opt-in: use tree-sitter for highlighting + diagnostics. Grammars download on first use.
   treeSitter: boolean;
+  // Show the author/commit of the current line as an inline git blame annotation in the editor.
+  gitBlame: boolean;
   // Show Material file/folder icons in the explorer. SVGs download on first use.
   fileIcons: boolean;
   // Opt-in: expose vault read/write tools to the Claude model over the companion MCP server.
@@ -71,6 +73,7 @@ interface CodeWorkbenchSettings {
 const DEFAULT_SETTINGS: CodeWorkbenchSettings = {
   shareSelection: true,
   treeSitter: true,
+  gitBlame: true,
   fileIcons: true,
   vaultTools: false,
   showHiddenFiles: false,
@@ -139,7 +142,8 @@ export default class CodeWorkbenchPlugin extends Plugin {
       `${this.app.vault.configDir}/plugins/${this.manifest.id}`,
     );
     const tsConfig = { loader: grammarLoader, enabled: () => this.settings.treeSitter };
-    this.registerView(CODE_VIEW_TYPE, (leaf) => new CodeView(leaf, tsConfig, formatService));
+    const blameConfig = { enabled: () => this.settings.gitBlame };
+    this.registerView(CODE_VIEW_TYPE, (leaf) => new CodeView(leaf, tsConfig, formatService, blameConfig));
     try {
       // One batched call instead of ~95 — far less file-explorer churn on enable.
       this.registerExtensions(CODE_VIEW_EXTENSIONS, CODE_VIEW_TYPE);
@@ -746,6 +750,20 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.treeSitter).onChange(async (value) => {
           this.plugin.settings.treeSitter = value;
+          await this.plugin.saveData(this.plugin.settings);
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Inline git blame")
+      .setDesc(
+        "On the current line in the code editor, show who last changed it and when (\"author · age · " +
+          "summary\"), read from git blame. The line you are editing reads as \"You · uncommitted\". " +
+          "Shows nothing when the vault is not a git repository. Desktop only.",
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.gitBlame).onChange(async (value) => {
+          this.plugin.settings.gitBlame = value;
           await this.plugin.saveData(this.plugin.settings);
         }),
       );
