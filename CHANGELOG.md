@@ -4,6 +4,18 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [3.1.0] - 2026-06-25
+
+### Added
+- Inline git blame. The current line shows who last changed it and when ("commit · author · age ·
+  summary"), read from `git blame`, in both the code editor and Markdown notes. The line you are
+  editing reads as "You · uncommitted". On by default; toggle it under Settings. Shows nothing when
+  the vault is not a git repository. Desktop only.
+
+### Changed
+- Settings screenshots are now fetched from the repository on demand (jsDelivr, CDN-cached) instead
+  of being inlined, keeping `main.js` smaller.
+
 ## [3.0.0] - 2026-06-24
 
 ### Added
