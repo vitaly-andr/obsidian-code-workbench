@@ -664,7 +664,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
     // fetched from the repo via jsDelivr (CDN, browser-cached) instead of inlined — the same lazy
     // pattern as grammars and icons, so they stay full-quality and off the main.js bundle.
     const pendingShots: Array<[HTMLImageElement, string]> = [];
-    const SHOT_CDN = "https://cdn.jsdelivr.net/gh/vitaly-andr/obsidian-code-workbench@3.1.0/docs/";
+    const SHOT_CDN = "https://cdn.jsdelivr.net/gh/vitaly-andr/obsidian-code-workbench@main/docs/";
     const SHOTS: Record<string, string> = {
       WORKBENCH_SHOT: "workbench.png",
       DIFF_SHOT: "keep-reject-diff.png",
