@@ -1,7 +1,7 @@
 {
   "id": "code-workbench",
   "name": "Code Workbench",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "minAppVersion": "1.7.2",
   "description": "Editor and Claude Code IDE for your vault: syntax highlighting, diagnostics, and formatting for 50+ languages. Claude's edits as diffs; vault tools let Claude read and edit your notes via MCP.",
   "author": "Vitaly Andrianov",

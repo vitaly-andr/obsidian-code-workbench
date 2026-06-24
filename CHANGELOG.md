@@ -4,6 +4,15 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [2.1.0] - 2026-06-24
+
+### Added
+- Current git branch in the status bar. A status-bar indicator shows the vault repository's current
+  branch, or `no git` when the vault is not a repository. The branch icon is colored by working-tree
+  state: green when clean, yellow with uncommitted changes, orange on a detached HEAD, and muted when
+  there is no repository. History is read locally via git, refreshed on focus and active-note changes
+  (no polling). Desktop only, read-only.
+
 ## [2.0.3] - 2026-06-23
 
 ### Fixed

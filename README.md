@@ -53,12 +53,17 @@ your CLI points at.
   with every write shown for your approval. See [Vault tools for Claude](#vault-tools-for-claude).
 - **Edit hidden files.** A *Hidden files* sidebar panel lists the dot-files Obsidian normally hides
   (`.mcp.json`, `.gitignore`, `.obsidian/…`) as a tree and opens them in the editor.
+- **Git branch in the status bar.** A status-bar indicator shows the current branch (or `no git`),
+  with the branch icon colored by working-tree state: green when clean, yellow with uncommitted
+  changes, orange on a detached HEAD.
 
 <img src="docs/diff.png" alt="A Claude edit shown as a Keep / Reject diff" width="100%">
 
 <img src="docs/file-icons.png" alt="Material file-type icons in the file explorer" width="100%">
 
 <img src="docs/hidden-files.png" alt="The Hidden files panel listing a vault's dot-files as a tree" width="330">
+
+<img src="docs/git-branch.png" alt="The current git branch shown in the status bar, color-coded by working-tree status" width="420">
 
 ## Language support
 
