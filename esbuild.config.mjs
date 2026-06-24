@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 import esbuild from "esbuild";
 import process from "process";
 import { builtinModules } from "module";

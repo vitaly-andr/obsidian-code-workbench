@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Generates src/icon-map.ts: the file/folder -> icon-name mapping distilled from material-icon-theme
 // (Philipp Kief, MIT). Only the lookup tables are bundled (~200KB); the SVGs themselves are fetched
 // on demand from jsDelivr and cached. The "expanded folder" icon is derived as <name>-open, so the
