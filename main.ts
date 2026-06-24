@@ -673,13 +673,15 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
     containerEl.createEl("p", {
       cls: "setting-item-description",
       text:
-        "Obsidian only opens Markdown. Code Workbench adds an editor for code files: syntax " +
-        "highlighting, error diagnostics, and one-command formatting for 50+ languages, plus a " +
-        "Keep/Reject diff for Claude Code's edits.",
+        "Code Workbench gives Claude the tools to maintain your vault from inside Obsidian, plus a " +
+        "real editor for code and config files: syntax highlighting, error diagnostics, and one-command " +
+        "formatting for 50+ languages, with a Keep/Reject diff for every edit Claude makes.",
     });
     containerEl
       .createEl("p", { cls: "setting-item-description" })
-      .createEl("em", { text: "Other Claude plugins give you a chat. This gives you an editor." });
+      .createEl("em", {
+        text: "Other Claude plugins give you a chat. This gives Claude tools to maintain your vault, and you an editor to review it.",
+      });
 
     addShot("WORKBENCH_SHOT", "A code file open in the Code Workbench editor");
 
@@ -716,6 +718,22 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       "Launch Claude in one click",
       "start the Claude Code CLI in this vault from the status bar or settings; it opens your " +
         "terminal in the right folder.",
+    );
+    feat(
+      "Maintain the vault with Claude",
+      "turn on Vault tools to let Claude read and edit notes through Obsidian's own link graph " +
+        "(backlinks, frontmatter) and make link-preserving changes, each shown for your approval.",
+    );
+    feat(
+      "Git review",
+      "a branch indicator in the status bar, a branch-graph panel with click-to-diff, and inline " +
+        "git blame on the current line, so you see what changed without leaving Obsidian.",
+    );
+    feat("File-type icons", "Material file and folder icons in the explorer, fetched on demand and cached.");
+    feat(
+      "Edit hidden files",
+      "a Hidden files panel lists the dot-files Obsidian normally hides (.mcp.json, .gitignore, " +
+        ".obsidian/…) as a tree and opens them in the editor.",
     );
 
     addShot("DIFF_SHOT", "A Claude edit shown as a Keep / Reject diff");
@@ -819,7 +837,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       .setName("Inline git blame")
       .setDesc(
         "On the current line, show who last changed it and when (\"commit · author · age · summary\"), " +
-          "read from git blame — in both the code editor and Markdown notes. The line you are editing " +
+          "read from git blame, in both the code editor and Markdown notes. The line you are editing " +
           "reads as \"You · uncommitted\". Shows nothing when the vault is not a git repository. Desktop only.",
       )
       .addToggle((toggle) =>
@@ -848,8 +866,8 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       .setName("Show hidden files")
       .setDesc(
         "Obsidian hides dot-files (.mcp.json, .gitignore, your config folder…) from the explorer. Turn this on " +
-          "to open a Hidden files panel in the left sidebar — a tree of the editable dot-files; click one " +
-          "to edit it. Hidden files are not auto-saved — press Mod+S to save your changes. Uses the same " +
+          "to open a Hidden files panel in the left sidebar: a tree of the editable dot-files; click one " +
+          "to edit it. Hidden files are not auto-saved, so press Mod+S to save your changes. Uses the same " +
           "file icons as the explorer when those are on. Desktop only.",
       )
       .addToggle((toggle) =>
@@ -864,8 +882,8 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Vault tools (Claude)")
       .setDesc(
-        "Let Claude read and safely maintain this vault — backlinks, search, frontmatter, " +
-          "link-preserving rename, and trash delete — as model-callable tools. Off by default. Every write " +
+        "Let Claude read and safely maintain this vault (backlinks, search, frontmatter, " +
+          "link-preserving rename, and trash delete) as model-callable tools. Off by default. Every write " +
           "is shown for your approval before anything changes. Local-only and desktop-only.",
       )
       .addToggle((toggle) =>
