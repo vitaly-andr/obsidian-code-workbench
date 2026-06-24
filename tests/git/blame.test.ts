@@ -86,7 +86,7 @@ describe("annotationText", () => {
       { line: 1, hash: "a".repeat(40), author: "Alice", epoch: Math.floor(NOW / 1000) - 86400, summary: "Add feature", uncommitted: false },
       NOW,
     );
-    expect(text).toBe("Alice · 1d · Add feature");
+    expect(text).toBe("aaaaaaa · Alice · 1d · Add feature");
   });
 
   it("shows a plain marker for an uncommitted line", () => {

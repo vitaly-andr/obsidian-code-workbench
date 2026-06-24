@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
-import { App, Notice, Plugin, PluginSettingTab, Setting, TFile, setIcon } from "obsidian";
+import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, TFile, setIcon } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import { randomUUID } from "crypto";
 import * as path from "path";
@@ -14,6 +14,7 @@ import { error, info, warn } from "./src/util/log";
 import { launchClaude } from "./src/util/launch";
 import { DEMO_FILES } from "./src/util/demo-files";
 import { CODE_VIEW_EXTENSIONS, CodeView } from "./src/views/code-view";
+import { blameAnnotation, setBlame } from "./src/views/blame-annotation";
 import { GrammarLoader } from "./src/treesitter/loader";
 import { FormatService } from "./src/format/format-service";
 import { DiffView } from "./src/views/diff-view";
@@ -25,7 +26,7 @@ import {
   HIDDEN_FILE_VIEW_TYPE,
   HIDDEN_TREE_VIEW_TYPE,
 } from "./src/views/view-types";
-import { vaultBasePath } from "./src/util/paths";
+import { absoluteForVaultPath, vaultBasePath } from "./src/util/paths";
 import { IconLoader } from "./src/icons/icon-loader";
 import { ExplorerIcons } from "./src/icons/explorer-icons";
 import { Companion } from "./src/mcp-http/companion";
@@ -34,7 +35,7 @@ import { HiddenFilesView } from "./src/views/hidden-files-view";
 import { GitGraphView } from "./src/views/git-graph-view";
 import { GitDiffView } from "./src/views/git-diff-view";
 import { HiddenEntry, listHiddenFiles } from "./src/views/hidden-files";
-import { getCurrentBranch, resolveRepository } from "./src/git/log";
+import { getCurrentBranch, loadBlame, resolveRepository } from "./src/git/log";
 import type { CurrentBranch } from "./src/git/types";
 
 // window.open is unreliable in Obsidian's renderer; open external URLs through Electron's shell,
@@ -53,6 +54,13 @@ function openExternal(url: string): void {
     // fall through to window.open
   }
   window.open(url, "_blank");
+}
+
+// Obsidian's Editor wraps a CodeMirror 6 EditorView on desktop; that view is not in the public
+// typings. Reach it through a narrow cast (no `any`) and degrade gracefully if it is ever absent.
+function markdownEditorView(view: MarkdownView): EditorView | null {
+  const cm = (view.editor as unknown as { cm?: EditorView }).cm;
+  return cm ?? null;
 }
 
 interface CodeWorkbenchSettings {
@@ -92,6 +100,7 @@ export default class CodeWorkbenchPlugin extends Plugin {
   private iconLoader: IconLoader | null = null;
   private gitBranchEl: HTMLElement | null = null;
   private gitRefreshTimer: number | null = null;
+  private mdBlameTimer: number | null = null;
 
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -178,6 +187,15 @@ export default class CodeWorkbenchPlugin extends Plugin {
     this.registerEvent(this.app.vault.on("create", repaintIcons));
     this.registerEvent(this.app.vault.on("rename", repaintIcons));
     this.registerEvent(this.app.vault.on("delete", repaintIcons));
+
+    // Inline git blame in markdown notes goes through Obsidian's own editor: install the (inert)
+    // blame fields in every markdown editor, then feed the active note's blame on navigation and
+    // after edits. CodeView blames itself; this covers markdown only.
+    this.registerEditorExtension([blameAnnotation()]);
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.scheduleMarkdownBlame()));
+    this.registerEvent(this.app.workspace.on("file-open", () => this.scheduleMarkdownBlame()));
+    this.registerEvent(this.app.workspace.on("editor-change", () => this.scheduleMarkdownBlame(1200)));
+    this.app.workspace.onLayoutReady(() => this.scheduleMarkdownBlame());
 
     // Track selection: cache it (for getLatestSelection) and push selection_changed to the CLI.
     let selectionTimer: number | null = null;
@@ -306,6 +324,7 @@ export default class CodeWorkbenchPlugin extends Plugin {
     this.companion = null;
     this.iconLoader = null;
     if (this.gitRefreshTimer !== null) window.clearTimeout(this.gitRefreshTimer);
+    if (this.mdBlameTimer !== null) window.clearTimeout(this.mdBlameTimer);
     this.gitBranchEl = null;
     this.ctx = null;
   }
@@ -467,6 +486,48 @@ export default class CodeWorkbenchPlugin extends Plugin {
                 ? " (uncommitted changes)"
                 : " (clean)"),
     );
+  }
+
+  // Coalesce navigation/edit bursts into a single markdown blame read.
+  private scheduleMarkdownBlame(delay = 250): void {
+    if (this.mdBlameTimer !== null) window.clearTimeout(this.mdBlameTimer);
+    this.mdBlameTimer = window.setTimeout(() => {
+      this.mdBlameTimer = null;
+      void this.refreshMarkdownBlame();
+    }, delay);
+  }
+
+  // Inline blame for the active markdown note, mirroring CodeView but dispatching into Obsidian's
+  // own editor. Clears when the setting is off; leaves nothing when git/repo is unavailable or the
+  // note is untracked.
+  private async refreshMarkdownBlame(): Promise<void> {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view || !view.file) return;
+    const cm = markdownEditorView(view);
+    if (!cm) return;
+    if (!this.settings.gitBlame) {
+      cm.dispatch({ effects: setBlame.of(null) });
+      return;
+    }
+    const abs = absoluteForVaultPath(this.app, view.file.path);
+    if (!abs) return;
+    // Resolve the repository on every refresh (no caching) so a `git init` after load is picked up,
+    // like the status-bar branch indicator.
+    const base = vaultBasePath(this.app);
+    const repo = base ? await resolveRepository(base) : null;
+    if (!repo || repo.state !== "ok") return;
+    const lines = await loadBlame(repo, abs);
+    if (this.app.workspace.getActiveViewOfType(MarkdownView) !== view) return; // note switched meanwhile
+    cm.dispatch({ effects: setBlame.of(lines.length ? lines : null) });
+  }
+
+  // Re-apply the blame setting everywhere visible (used when the toggle changes): every open code
+  // view plus the active markdown note.
+  refreshAllBlame(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(CODE_VIEW_TYPE)) {
+      if (leaf.view instanceof CodeView) leaf.view.applyBlame();
+    }
+    void this.refreshMarkdownBlame();
   }
 
   private refreshStatus(): void {
@@ -757,14 +818,15 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Inline git blame")
       .setDesc(
-        "On the current line in the code editor, show who last changed it and when (\"author · age · " +
-          "summary\"), read from git blame. The line you are editing reads as \"You · uncommitted\". " +
-          "Shows nothing when the vault is not a git repository. Desktop only.",
+        "On the current line, show who last changed it and when (\"commit · author · age · summary\"), " +
+          "read from git blame — in both the code editor and Markdown notes. The line you are editing " +
+          "reads as \"You · uncommitted\". Shows nothing when the vault is not a git repository. Desktop only.",
       )
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.gitBlame).onChange(async (value) => {
           this.plugin.settings.gitBlame = value;
           await this.plugin.saveData(this.plugin.settings);
+          this.plugin.refreshAllBlame();
         }),
       );
 

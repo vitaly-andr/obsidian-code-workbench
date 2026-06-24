@@ -17,7 +17,6 @@ import { formatCode } from "../format/prettier-format";
 import { grammarForExtension } from "../treesitter/registry";
 import { treeSitterExtensions } from "../treesitter/tree-extensions";
 import { loadBlame, resolveRepository } from "../git/log";
-import type { RepositorySource } from "../git/types";
 import type { GrammarLoader } from "../treesitter/loader";
 import type { FormatService } from "../format/format-service";
 
@@ -41,8 +40,6 @@ export class CodeView extends TextFileView implements SelectionProvider {
   private editor: EditorView | null = null;
   // Swappable language layer: Lezer/legacy first, upgraded to tree-sitter once a grammar loads.
   private readonly langLayer = new Compartment();
-  // The vault's repository, resolved once then cached (the vault is one repo). null until resolved.
-  private repo: RepositorySource | null = null;
   // Debounce handle for re-blaming after edits.
   private blameTimer: number | null = null;
 
@@ -165,12 +162,12 @@ export class CodeView extends TextFileView implements SelectionProvider {
     }
     const abs = absoluteForVaultPath(this.app, this.file.path);
     if (!abs) return;
-    if (!this.repo) {
-      const base = vaultBasePath(this.app);
-      this.repo = base ? await resolveRepository(base) : null;
-    }
-    if (!this.repo || this.repo.state !== "ok" || this.editor !== view) return;
-    const lines = await loadBlame(this.repo, abs);
+    // Resolve the repository on every refresh (no caching) so a `git init` after load is picked up,
+    // matching the status-bar branch indicator. The cost is one `git rev-parse` next to the blame.
+    const base = vaultBasePath(this.app);
+    const repo = base ? await resolveRepository(base) : null;
+    if (!repo || repo.state !== "ok" || this.editor !== view) return;
+    const lines = await loadBlame(repo, abs);
     if (this.editor !== view) return; // the file was switched while blaming
     view.dispatch({ effects: setBlame.of(lines.length ? lines : null) });
   }

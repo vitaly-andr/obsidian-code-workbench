@@ -36,11 +36,12 @@ export function relativeAge(epochSec: number, now: number): string {
   return `${Math.floor(d / 365)}y`;
 }
 
-// The annotation text for one line. Uncommitted edits read as a plain marker.
+// The annotation text for one line, led by the commit's short hash (as `git blame` does).
+// Uncommitted edits read as a plain marker (no commit yet, so no hash).
 export function annotationText(entry: BlameLine, now: number): string {
   if (entry.uncommitted) return "You · uncommitted";
   const sum = entry.summary.length > 50 ? entry.summary.slice(0, 49) + "…" : entry.summary;
-  return `${entry.author} · ${relativeAge(entry.epoch, now)} · ${sum}`;
+  return `${entry.hash.slice(0, 7)} · ${entry.author} · ${relativeAge(entry.epoch, now)} · ${sum}`;
 }
 
 class BlameWidget extends WidgetType {

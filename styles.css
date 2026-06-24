@@ -174,14 +174,19 @@
 .cw-gg-st-R { color: var(--color-blue); }
 .cw-gg-st-C { color: var(--color-blue); }
 
-/* Inline current-line git blame annotation in CodeView. Dim, non-interactive, off to the right. */
+/* Inline current-line git blame annotation. Dim, non-interactive, off to the right. Uses an
+   absolute UI font size and resets weight/line-height so it never inherits a heading's large bold
+   font when the cursor sits on a Markdown heading line (--font-smaller is em-relative and would
+   scale with the heading). */
 .cw-blame-inline {
   margin-left: 2em;
-  padding-left: 0.5em;
   color: var(--text-faint);
   font-family: var(--font-monospace);
-  font-size: var(--font-smaller);
+  font-size: var(--font-ui-smaller, 12px);
+  font-weight: normal;
   font-style: italic;
+  line-height: 1;
+  vertical-align: middle;
   white-space: pre;
   user-select: none;
   pointer-events: none;
