@@ -8,3 +8,7 @@ export const CODE_VIEW_TYPE = "code-workbench-code";
 export const HIDDEN_FILE_VIEW_TYPE = "code-workbench-hidden-file";
 // Sidebar tree panel listing the vault's hidden files (a parallel explorer for dot-paths).
 export const HIDDEN_TREE_VIEW_TYPE = "code-workbench-hidden-tree";
+// Sidebar panel that draws the repository history as a branch graph.
+export const GIT_GRAPH_VIEW_TYPE = "code-workbench-git-graph";
+// Read-only side-by-side diff of a file at a commit (opened from the git graph).
+export const GIT_DIFF_VIEW_TYPE = "code-workbench-git-diff";
