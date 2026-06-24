@@ -4,6 +4,16 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [3.0.0] - 2026-06-24
+
+### Added
+- Git graph. A new sidebar panel draws the repository history as a branch graph: commits
+  newest-first, a lane per concurrent branch with merge and branch edges, ref labels
+  (branch/tag/HEAD), colored by lane. Click a commit to see the branches that contain it and the
+  files it changed; click a file to open a read-only side-by-side diff (parent on the left, the
+  commit on the right) with syntax highlighting. History is read locally via git. Desktop only,
+  read-only.
+
 ## [2.1.0] - 2026-06-24
 
 ### Added

@@ -56,6 +56,9 @@ your CLI points at.
 - **Git branch in the status bar.** A status-bar indicator shows the current branch (or `no git`),
   with the branch icon colored by working-tree state: green when clean, yellow with uncommitted
   changes, orange on a detached HEAD.
+- **Git graph.** A sidebar panel draws the repository history as a branch graph — commits
+  newest-first, a lane per branch with merge and branch edges, ref labels. Click a commit to see the
+  branches that contain it and the files it changed; click a file for a read-only side-by-side diff.
 
 <img src="docs/diff.png" alt="A Claude edit shown as a Keep / Reject diff" width="100%">
 
@@ -64,6 +67,8 @@ your CLI points at.
 <img src="docs/hidden-files.png" alt="The Hidden files panel listing a vault's dot-files as a tree" width="330">
 
 <img src="docs/git-branch.png" alt="The current git branch shown in the status bar, color-coded by working-tree status" width="420">
+
+<img src="docs/git-graph-panel.png" alt="The repository history drawn as a branch graph in a sidebar panel" width="330">
 
 ## Language support
 
