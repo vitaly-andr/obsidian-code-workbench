@@ -4,6 +4,12 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [3.1.2] - 2026-06-25
+
+### Changed
+- Removed a generic "Options" heading from the settings page (Obsidian review guideline), and
+  refreshed the plugin's store description.
+
 ## [3.1.1] - 2026-06-25
 
 ### Fixed

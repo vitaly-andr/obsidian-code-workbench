@@ -1,6 +1,6 @@
 {
   "name": "obsidian-code-workbench",
-  "version": "3.1.1",
+  "version": "3.1.2",
   "description": "Code Workbench — Claude Code integration for Obsidian.",
   "main": "main.js",
   "type": "module",

@@ -869,7 +869,6 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(containerEl).setName("Options").setHeading();
     containerEl.createEl("p", {
       cls: "setting-item-description",
       text:
