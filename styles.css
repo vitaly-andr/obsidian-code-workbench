@@ -4,6 +4,44 @@
  * SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
  * Licensed under PolyForm Shield 1.0.0. See LICENSE.
  */
+
+/* Git branch status-bar item: icon + name, a separator on the right, color by status. */
+.cw-gitbranch {
+  order: -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 8px;
+  margin-right: 4px;
+  border-right: 1px solid var(--background-modifier-border);
+}
+.cw-gitbranch .cw-gitbranch-icon {
+  display: inline-flex;
+}
+.cw-gitbranch .cw-gitbranch-icon svg {
+  width: 14px;
+  height: 14px;
+}
+.cw-gitbranch .cw-gitbranch-label {
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cw-gitbranch.is-branch .cw-gitbranch-icon {
+  color: var(--color-green, var(--interactive-accent));
+}
+.cw-gitbranch.is-dirty .cw-gitbranch-icon {
+  color: var(--color-yellow, var(--color-orange));
+}
+.cw-gitbranch.is-detached .cw-gitbranch-icon {
+  color: var(--color-orange, var(--color-yellow));
+}
+.cw-gitbranch.is-none,
+.cw-gitbranch.is-none .cw-gitbranch-icon {
+  color: var(--text-faint);
+}
+
 .code-workbench-diff {
   display: flex;
   flex-direction: column;
