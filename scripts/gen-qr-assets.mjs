@@ -1,14 +1,15 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
+// Copyright 2026 Vitaly Andrianov. See LICENSE.
+
 // Regenerates src/util/qr.ts: inlines the settings-tab images from docs/ as optimized base64
 // data-URIs. Screenshots are downscaled to ~720px and JPEG-compressed; QR codes are downscaled and
 // reduced to a tiny palette PNG. Run: node scripts/gen-qr-assets.mjs
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
+// Only the tiny crypto/contact QR codes are inlined. Settings screenshots are fetched from the repo
+// via jsDelivr at runtime (see the settings tab), so they stay full-quality and off the bundle.
 const ASSETS = [
-  { name: "WORKBENCH_SHOT", src: "docs/workbench.png", kind: "shot" },
-  { name: "DIFF_SHOT", src: "docs/diff.png", kind: "shot" },
-  { name: "ICONS_SHOT", src: "docs/file-icons.png", kind: "shot" },
-  { name: "CONNECT_SHOT", src: "docs/connect.png", kind: "shot" },
   { name: "TELEGRAM_QR", src: "docs/telegram-qr.png", kind: "qr" },
   { name: "QR_EVM", src: "docs/evm.jpg", kind: "qr" },
   { name: "QR_TRON", src: "docs/tron.jpg", kind: "qr" },
@@ -18,8 +19,9 @@ const ASSETS = [
 function optimize(src, kind) {
   const out = `/tmp/qrgen-out`;
   if (kind === "shot") {
-    // UI screenshots: fit within 720px, strip metadata, JPEG q80 (small, fine for decoration).
-    execSync(`magick ${src} -resize 720x720\\> -strip -interlace Plane -quality 80 jpg:${out}`);
+    // UI screenshots: fit within 600px, strip metadata, JPEG q70 (small, fine for decoration).
+    // Kept compact so the whole settings-tab gallery stays comfortably under the 5 MB bundle limit.
+    execSync(`magick ${src} -resize 600x600\\> -strip -interlace Plane -quality 70 jpg:${out}`);
     return { mime: "image/jpeg", bytes: readFileSync(out) };
   }
   // QR codes: composite any transparency onto white (some sources are RGBA), fit within 320px, then

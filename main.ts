@@ -503,7 +503,7 @@ export default class CodeWorkbenchPlugin extends Plugin {
   private async refreshMarkdownBlame(): Promise<void> {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view || !view.file) return;
-    const cm = markdownEditorView(view);
+    let cm = markdownEditorView(view);
     if (!cm) return;
     if (!this.settings.gitBlame) {
       cm.dispatch({ effects: setBlame.of(null) });
@@ -512,12 +512,16 @@ export default class CodeWorkbenchPlugin extends Plugin {
     const abs = absoluteForVaultPath(this.app, view.file.path);
     if (!abs) return;
     // Resolve the repository on every refresh (no caching) so a `git init` after load is picked up,
-    // like the status-bar branch indicator.
+    // like the status-bar branch indicator. A non-"ok" repo yields no lines, which clears any stale
+    // blame rather than leaving the previous note's annotation on screen.
     const base = vaultBasePath(this.app);
     const repo = base ? await resolveRepository(base) : null;
-    if (!repo || repo.state !== "ok") return;
-    const lines = await loadBlame(repo, abs);
+    const lines = repo && repo.state === "ok" ? await loadBlame(repo, abs) : [];
     if (this.app.workspace.getActiveViewOfType(MarkdownView) !== view) return; // note switched meanwhile
+    // The editor can be swapped under the same view (Reading <-> Live Preview) during the awaits;
+    // re-fetch it and dispatch into the current instance, never a destroyed one.
+    cm = markdownEditorView(view);
+    if (!cm) return;
     cm.dispatch({ effects: setBlame.of(lines.length ? lines : null) });
   }
 
@@ -656,10 +660,26 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
 
     // Screenshots live in qr.ts (~0.5MB base64). Load that module only when settings open, not on
     // plugin load: create the <img> now (correct layout slot) and fill its src once it resolves.
+    // Crypto/contact QR codes are tiny and bundled (qr.ts, filled below). Settings screenshots are
+    // fetched from the repo via jsDelivr (CDN, browser-cached) instead of inlined — the same lazy
+    // pattern as grammars and icons, so they stay full-quality and off the main.js bundle.
     const pendingShots: Array<[HTMLImageElement, string]> = [];
+    const SHOT_CDN = "https://cdn.jsdelivr.net/gh/vitaly-andr/obsidian-code-workbench@3.1.0/docs/";
+    const SHOTS: Record<string, string> = {
+      WORKBENCH_SHOT: "workbench.png",
+      DIFF_SHOT: "keep-reject-diff.png",
+      GIT_BRANCH_SHOT: "git-branch.png",
+      GIT_GRAPH_SHOT: "git-graph-panel.png",
+      GIT_BLAME_SHOT: "git-blame.png",
+      ICONS_SHOT: "file-icons.png",
+      HIDDEN_SHOT: "hidden-files.png",
+      CONNECT_SHOT: "connect.png",
+    };
     const addShot = (key: string, alt: string): void => {
-      const img = containerEl.createEl("img", { cls: "cw-shot", attr: { alt } });
-      pendingShots.push([img, key]);
+      containerEl.createEl("img", {
+        cls: "cw-shot",
+        attr: { alt, src: SHOT_CDN + SHOTS[key], loading: "lazy" },
+      });
     };
 
     const badges = containerEl.createDiv({ cls: "cw-badges" });
@@ -676,6 +696,22 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
         "Code Workbench gives Claude the tools to maintain your vault from inside Obsidian, plus a " +
         "real editor for code and config files: syntax highlighting, error diagnostics, and one-command " +
         "formatting for 50+ languages, with a Keep/Reject diff for every edit Claude makes.",
+    });
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text:
+        "One click in the status bar opens a terminal in your vault with the Claude Code CLI already " +
+        "connected, no /ide. Because it drives the CLI you already run, it uses your Claude subscription " +
+        "instead of a metered API key, so letting Claude work across a whole vault doesn't run up an API " +
+        "bill. It works with other Claude Code compatible models too, like Kimi K2 or DeepSeek.",
+    });
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text:
+        "Turn on the vault tools and Claude reads and edits notes through Obsidian's own link graph " +
+        "(backlinks, wikilinks, frontmatter) and makes link-preserving changes, filing new notes where " +
+        "they belong and holding your PARA or Zettelkasten system together without breaking links. Every " +
+        "change is shown for your approval first, so you don't need to write code to use it.",
     });
     containerEl
       .createEl("p", { cls: "setting-item-description" })
@@ -742,10 +778,34 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       text: "A Claude edit, shown as a Keep / Reject diff.",
     });
 
+    addShot("GIT_BRANCH_SHOT", "The current git branch in the status bar");
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text: "The current branch in the status bar, colored by working-tree state.",
+    });
+
+    addShot("GIT_GRAPH_SHOT", "Repository history drawn as a branch graph");
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text: "The repository history as a branch graph; click a commit for its files, a file for a diff.",
+    });
+
+    addShot("GIT_BLAME_SHOT", "Inline git blame on the current line");
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text: "Inline git blame on the current line, in code files and Markdown notes.",
+    });
+
     addShot("ICONS_SHOT", "Material file-type icons in the file explorer");
     containerEl.createEl("p", {
       cls: "setting-item-description",
       text: "Material file and folder icons in the explorer.",
+    });
+
+    addShot("HIDDEN_SHOT", "The Hidden files panel listing a vault's dot-files");
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text: "The Hidden files panel: edit the dot-files Obsidian normally hides.",
     });
 
     new Setting(containerEl).setName("Using it").setHeading();
@@ -808,6 +868,14 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
             void this.plugin.installDemo();
           }),
       );
+
+    new Setting(containerEl).setName("Options").setHeading();
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text:
+        "Every feature is optional; turn off what you don't use. The vault tools stay off until you " +
+        "switch them on.",
+    });
 
     new Setting(containerEl)
       .setName("Share selection automatically")
