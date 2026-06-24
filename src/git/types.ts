@@ -20,3 +20,19 @@ export interface CurrentBranch extends BranchIdentity {
   // True when the working tree has uncommitted changes (meaningful only when kind != "none").
   dirty: boolean;
 }
+
+// A named pointer shown on a commit (branch / tag / HEAD / remote-tracking).
+export interface Ref {
+  name: string;
+  kind: "branch" | "tag" | "head" | "remote";
+}
+
+// One commit as parsed from `git log` — the input to the graph layout and view.
+export interface CommitRecord {
+  hash: string;
+  parents: string[]; // ordered; parents[0] is the first parent
+  refs: Ref[];
+  author: string;
+  date: string; // committer date, ISO-8601
+  subject: string;
+}

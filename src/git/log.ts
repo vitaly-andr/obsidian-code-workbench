@@ -2,7 +2,7 @@
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
 import { execFile } from "child_process";
-import type { BranchIdentity, CurrentBranch, RepositorySource } from "./types";
+import type { BranchIdentity, CommitRecord, CurrentBranch, Ref, RepositorySource } from "./types";
 
 // Run git with an argument array (never a shell string) and a fixed cwd, so no untrusted
 // text is interpreted by a shell. Never rejects: a non-zero exit is normal control flow.
@@ -79,4 +79,90 @@ export async function getCurrentBranch(repo: RepositorySource): Promise<CurrentB
     dirty = !st.failed && st.code === 0 && st.stdout.trim().length > 0;
   }
   return { ...identity, dirty };
+}
+
+const US = "\x1f"; // field separator
+const RS = "\x1e"; // record separator
+
+// Parse `%D` (ref names) into typed refs.
+function parseRefs(raw: string): Ref[] {
+  const refs: Ref[] = [];
+  for (const part of raw.split(",").map((s) => s.trim()).filter(Boolean)) {
+    if (part.startsWith("HEAD -> ")) {
+      refs.push({ name: "HEAD", kind: "head" });
+      refs.push({ name: part.slice("HEAD -> ".length), kind: "branch" });
+    } else if (part === "HEAD") {
+      refs.push({ name: "HEAD", kind: "head" });
+    } else if (part.startsWith("tag: ")) {
+      refs.push({ name: part.slice("tag: ".length), kind: "tag" });
+    } else if (part.includes("/")) {
+      refs.push({ name: part, kind: "remote" });
+    } else {
+      refs.push({ name: part, kind: "branch" });
+    }
+  }
+  return refs;
+}
+
+// Parse the US/RS-delimited `git log` output. Pure (no I/O), so it is unit-testable.
+export function parseCommits(stdout: string): CommitRecord[] {
+  const out: CommitRecord[] = [];
+  for (const chunk of stdout.split(RS)) {
+    const rec = chunk.trim();
+    if (!rec) continue;
+    const [hash = "", parentsRaw = "", refsRaw = "", author = "", date = "", subject = ""] = rec.split(US);
+    if (!hash) continue;
+    const parents = parentsRaw.trim() ? parentsRaw.trim().split(" ") : [];
+    out.push({ hash, parents, refs: parseRefs(refsRaw), author, date, subject });
+  }
+  return out;
+}
+
+export interface LoadCommitsOptions {
+  scope?: "all" | "current"; // all local branches (default) or the current branch only
+  limit?: number; // max commits to return (default 500)
+  skip?: number; // commits to skip, for incremental loading
+}
+
+// Load commits (newest-first, topological) for the graph. Returns `hasMore` for pagination.
+export async function loadCommits(
+  repo: RepositorySource,
+  opts: LoadCommitsOptions = {},
+): Promise<{ commits: CommitRecord[]; hasMore: boolean }> {
+  if (!repo.root || repo.state !== "ok") return { commits: [], hasMore: false };
+  const scope = opts.scope ?? "all";
+  const limit = opts.limit ?? 500;
+  const skip = opts.skip ?? 0;
+  const fmt = ["%H", "%P", "%D", "%an", "%aI", "%s"].join(US) + RS;
+  const args = ["log"];
+  if (scope === "all") args.push("--all");
+  args.push("--parents", "--topo-order", `--max-count=${limit + 1}`, `--skip=${skip}`, `--pretty=format:${fmt}`);
+  const res = await runGit(repo.root, args);
+  if (res.failed || res.code !== 0) return { commits: [], hasMore: false };
+  const all = parseCommits(res.stdout);
+  const hasMore = all.length > limit;
+  return { commits: hasMore ? all.slice(0, limit) : all, hasMore };
+}
+
+// Branches containing a commit + the files it changed (vs its first parent). For the detail pane.
+export async function loadCommitDetail(
+  repo: RepositorySource,
+  hash: string,
+): Promise<{ branches: string[]; files: { status: string; path: string }[] }> {
+  if (!repo.root || repo.state !== "ok") return { branches: [], files: [] };
+  const br = await runGit(repo.root, ["branch", "--contains", hash, "--format=%(refname:short)"]);
+  const branches =
+    !br.failed && br.code === 0 ? br.stdout.split("\n").map((s) => s.trim()).filter(Boolean) : [];
+  const fs = await runGit(repo.root, ["show", "--no-color", "--first-parent", "--name-status", "--format=", hash]);
+  const files: { status: string; path: string }[] = [];
+  if (!fs.failed && fs.code === 0) {
+    for (const line of fs.stdout.split("\n")) {
+      const t = line.trim();
+      if (!t) continue;
+      const parts = t.split("\t");
+      if (parts.length < 2) continue;
+      files.push({ status: parts[0][0] ?? "?", path: parts[parts.length - 1] });
+    }
+  }
+  return { branches, files };
 }
