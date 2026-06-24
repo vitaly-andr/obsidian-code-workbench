@@ -4,6 +4,12 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [3.1.1] - 2026-06-25
+
+### Fixed
+- Settings screenshots load from the repository's `main` branch via jsDelivr, which serves them
+  immediately, instead of the `3.1.0` tag, which the CDN needs time to warm up after a release.
+
 ## [3.1.0] - 2026-06-25
 
 ### Added
