@@ -74,8 +74,12 @@ const blameDeco = StateField.define<DecorationSet>({
     const line = tr.state.doc.lineAt(head);
     const entry = blame[line.number - 1];
     if (!entry) return Decoration.none;
+    // Floor "now" to the minute: relativeAge is minute-coarse, so the annotation text (and thus
+    // BlameWidget.eq) stays stable across transactions within a minute, instead of recreating the
+    // widget DOM on every keystroke.
+    const now = Math.floor(Date.now() / 60000) * 60000;
     const widget = Decoration.widget({
-      widget: new BlameWidget(annotationText(entry, Date.now())),
+      widget: new BlameWidget(annotationText(entry, now)),
       side: 1,
     });
     return Decoration.set([widget.range(line.to)]);

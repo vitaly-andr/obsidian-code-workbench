@@ -166,8 +166,9 @@ export class CodeView extends TextFileView implements SelectionProvider {
     // matching the status-bar branch indicator. The cost is one `git rev-parse` next to the blame.
     const base = vaultBasePath(this.app);
     const repo = base ? await resolveRepository(base) : null;
-    if (!repo || repo.state !== "ok" || this.editor !== view) return;
-    const lines = await loadBlame(repo, abs);
+    if (this.editor !== view) return; // the file was switched while resolving
+    // A non-"ok" repo yields no lines, which clears any stale blame rather than leaving it on screen.
+    const lines = repo && repo.state === "ok" ? await loadBlame(repo, abs) : [];
     if (this.editor !== view) return; // the file was switched while blaming
     view.dispatch({ effects: setBlame.of(lines.length ? lines : null) });
   }
