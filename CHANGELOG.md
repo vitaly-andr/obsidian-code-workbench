@@ -4,6 +4,17 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [3.1.3] - 2026-06-25
+
+### Fixed
+- The git graph, status-bar branch, and inline blame now refresh on their own when the repository
+  changes (a commit, checkout, merge, or reset), including changes made from outside Obsidian such
+  as a terminal or Claude Code. The graph previously updated only when reopened or refreshed by hand.
+
+### Removed
+- The git graph's manual refresh control, which did not render in the panel header. Auto-refresh
+  replaces it.
+
 ## [3.1.2] - 2026-06-25
 
 ### Changed
