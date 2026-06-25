@@ -37,6 +37,15 @@ export interface CommitRecord {
   subject: string;
 }
 
+// A working-tree change for one file, derived from `git status --porcelain`, for the explorer
+// decorations: M modified, A added (staged new), D deleted, R renamed, U untracked (new, not tracked).
+export type GitStatusCode = "M" | "A" | "D" | "R" | "U";
+
+export interface GitStatusEntry {
+  path: string; // repo-root-relative path, forward slashes
+  code: GitStatusCode;
+}
+
 // One line's blame, parsed from `git blame --line-porcelain`. Drives the inline annotation.
 export interface BlameLine {
   line: number; // 1-based final line number

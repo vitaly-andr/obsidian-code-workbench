@@ -413,3 +413,45 @@
   background-position: center;
   background-size: contain;
 }
+
+/* VS Code-style git status in the explorer: the changed file's name is tinted and gets a one-letter
+   badge; a folder that contains changes is tinted too. Colors reuse the theme's git-graph palette. */
+.nav-file-title.cw-git-M,
+.nav-file-title.cw-git-M .tree-item-inner {
+  color: var(--color-yellow);
+}
+.nav-file-title.cw-git-A,
+.nav-file-title.cw-git-A .tree-item-inner,
+.nav-file-title.cw-git-U,
+.nav-file-title.cw-git-U .tree-item-inner {
+  color: var(--color-green);
+}
+.nav-file-title.cw-git-D,
+.nav-file-title.cw-git-D .tree-item-inner {
+  color: var(--color-red);
+}
+.nav-file-title.cw-git-R,
+.nav-file-title.cw-git-R .tree-item-inner {
+  color: var(--color-blue);
+}
+.nav-folder-title.cw-git-dir,
+.nav-folder-title.cw-git-dir .tree-item-inner {
+  color: var(--color-yellow);
+  opacity: 0.85;
+}
+/* Git-ignored files and folders are dimmed, VS Code style. */
+.nav-file-title.cw-git-ignored,
+.nav-file-title.cw-git-ignored .tree-item-inner,
+.nav-folder-title.cw-git-ignored,
+.nav-folder-title.cw-git-ignored .tree-item-inner {
+  color: var(--text-faint);
+}
+.cw-git-badge {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: var(--font-smaller, 11px);
+  font-weight: 600;
+  line-height: 1;
+}

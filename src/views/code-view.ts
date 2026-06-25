@@ -7,6 +7,8 @@ import { EditorView, highlightActiveLine, keymap, lineNumbers } from "@codemirro
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { SelectionPayload } from "../context";
 import { SelectionProvider } from "../tools/selection";
+import { showEditorContextMenu } from "./editor-context-menu";
+import type { EditorMenuHost } from "./editor-context-menu";
 import { grammarKeyForPath } from "../util/languages";
 import { absoluteForVaultPath, toFileUri, vaultBasePath } from "../util/paths";
 import { CODE_VIEW_TYPE } from "./view-types";
@@ -48,6 +50,7 @@ export class CodeView extends TextFileView implements SelectionProvider {
     private readonly ts?: TreeSitterConfig,
     private readonly formatService?: FormatService,
     private readonly blame?: BlameConfig,
+    private readonly menuHost?: EditorMenuHost,
   ) {
     super(leaf);
   }
@@ -58,6 +61,23 @@ export class CodeView extends TextFileView implements SelectionProvider {
 
   getIcon(): string {
     return "file-code";
+  }
+
+  async onOpen(): Promise<void> {
+    await super.onOpen();
+    // Obsidian's editor-menu never fires for this non-TFile code editor, so build our own right-click
+    // menu (same one as the hidden-file editor): edit actions plus share-selection and diff.
+    this.registerDomEvent(this.contentEl, "contextmenu", (evt) => this.showContextMenu(evt));
+  }
+
+  private showContextMenu(evt: MouseEvent): void {
+    if (!this.editor || !this.file || !this.menuHost) return;
+    showEditorContextMenu(evt, this.editor, {
+      payload: () => this.getSelectionPayload(),
+      absPath: absoluteForVaultPath(this.app, this.file.path),
+      displayName: this.file.name,
+      host: this.menuHost,
+    });
   }
 
   getViewData(): string {

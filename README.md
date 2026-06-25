@@ -43,6 +43,10 @@ Review what the AI committed without leaving Obsidian. The branch shows in the s
 
 <img src="docs/git-blame.png" alt="Inline git blame on the current line of a Markdown note" width="100%">
 
+**Right-click actions.** Right-click a file — in the explorer, on a tab, or inside the editor — to run *Diff against last commit*: a read-only side-by-side diff of your working-tree changes against `HEAD`. In an editor the same menu also has *Add selection to Claude context*, which sends the current selection to Claude as an `@`-mention. Changed files are marked in the explorer too, VS Code style (`M` for modified, `U` for new), including dot-files in the *Hidden files* panel.
+
+<img src="docs/working-tree-diff.png" alt="The editor right-click menu: Add selection to Claude context, and Diff against last commit" width="568">
+
 ## In the file explorer
 
 **File-type icons.** Material file and folder icons, fetched on demand and cached.

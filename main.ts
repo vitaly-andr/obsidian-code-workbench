@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
-import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, TFile, setIcon } from "obsidian";
+import { App, MarkdownView, Menu, Notice, Plugin, PluginSettingTab, Setting, TFile, setIcon } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import { randomUUID } from "crypto";
 import * as path from "path";
@@ -26,16 +26,18 @@ import {
   HIDDEN_FILE_VIEW_TYPE,
   HIDDEN_TREE_VIEW_TYPE,
 } from "./src/views/view-types";
-import { absoluteForVaultPath, vaultBasePath } from "./src/util/paths";
+import { absoluteForVaultPath, vaultBasePath, vaultPathForAbsolute } from "./src/util/paths";
 import { IconLoader } from "./src/icons/icon-loader";
 import { ExplorerIcons } from "./src/icons/explorer-icons";
+import { GitDecorations } from "./src/decorations/git-decorations";
 import { Companion } from "./src/mcp-http/companion";
 import { HiddenFileView } from "./src/views/hidden-file-view";
 import { HiddenFilesView } from "./src/views/hidden-files-view";
 import { GitGraphView } from "./src/views/git-graph-view";
 import { GitDiffView } from "./src/views/git-diff-view";
+import type { EditorMenuHost } from "./src/views/editor-context-menu";
 import { HiddenEntry, listHiddenFiles } from "./src/views/hidden-files";
-import { getCurrentBranch, loadBlame, resolveRepository } from "./src/git/log";
+import { getCurrentBranch, loadBlame, loadHeadBlob, resolveRepository } from "./src/git/log";
 import { watchGitRefs } from "./src/git/watch";
 import type { CurrentBranch } from "./src/git/types";
 
@@ -73,6 +75,8 @@ interface CodeWorkbenchSettings {
   gitBlame: boolean;
   // Show Material file/folder icons in the explorer. SVGs download on first use.
   fileIcons: boolean;
+  // VS Code-style git status in the explorer: tint changed files/folders and badge them (M/A/D/R/U).
+  gitDecorations: boolean;
   // Opt-in: expose vault read/write tools to the Claude model over the companion MCP server.
   vaultTools: boolean;
   // Opt-in: surface the vault's hidden (dot) files in settings so they can be opened and edited.
@@ -84,6 +88,7 @@ const DEFAULT_SETTINGS: CodeWorkbenchSettings = {
   treeSitter: true,
   gitBlame: true,
   fileIcons: true,
+  gitDecorations: true,
   vaultTools: false,
   showHiddenFiles: false,
 };
@@ -97,10 +102,12 @@ export default class CodeWorkbenchPlugin extends Plugin {
   private port = 0;
   private connected = false;
   private explorerIcons: ExplorerIcons | null = null;
+  private gitDecorations: GitDecorations | null = null;
   private companion: Companion | null = null;
   private iconLoader: IconLoader | null = null;
   private gitBranchEl: HTMLElement | null = null;
   private gitRefreshTimer: number | null = null;
+  private gitStatusTimer: number | null = null;
   private mdBlameTimer: number | null = null;
   private gitWatchDispose: (() => void) | null = null;
 
@@ -116,6 +123,18 @@ export default class CodeWorkbenchPlugin extends Plugin {
       notify: () => {},
     };
     this.ctx = ctx;
+
+    // The right-click menu shared by the code-file and hidden-file editors (neither is a TFile view,
+    // so Obsidian's own editor-menu skips them): @-mention a selection, and diff against the last commit.
+    const editorMenuHost: EditorMenuHost = {
+      addToContext: (payload) =>
+        this.ctx?.notify("at_mentioned", {
+          filePath: payload.filePath,
+          lineStart: payload.selection.start.line + 1,
+          lineEnd: payload.selection.end.line + 1,
+        }),
+      openWorkingDiff: (absPath, name) => void this.openWorkingDiffAbs(absPath, name),
+    };
 
     this.statusEl = this.addStatusBarItem();
     this.statusEl.addClass("mod-clickable");
@@ -133,7 +152,15 @@ export default class CodeWorkbenchPlugin extends Plugin {
     void this.refreshGitBranch();
 
     this.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf));
-    this.registerView(HIDDEN_FILE_VIEW_TYPE, (leaf) => new HiddenFileView(leaf));
+    this.registerView(
+      HIDDEN_FILE_VIEW_TYPE,
+      (leaf) =>
+        new HiddenFileView(leaf, {
+          ...editorMenuHost,
+          // Re-read git status after a save: dot-files don't fire vault events or move a git ref.
+          onSaved: () => void this.gitDecorations?.update(),
+        }),
+    );
     this.registerView(HIDDEN_TREE_VIEW_TYPE, (leaf) => new HiddenFilesView(leaf, this));
     this.registerView(GIT_GRAPH_VIEW_TYPE, (leaf) => new GitGraphView(leaf));
     this.registerView(GIT_DIFF_VIEW_TYPE, (leaf) => new GitDiffView(leaf));
@@ -154,7 +181,10 @@ export default class CodeWorkbenchPlugin extends Plugin {
     );
     const tsConfig = { loader: grammarLoader, enabled: () => this.settings.treeSitter };
     const blameConfig = { enabled: () => this.settings.gitBlame };
-    this.registerView(CODE_VIEW_TYPE, (leaf) => new CodeView(leaf, tsConfig, formatService, blameConfig));
+    this.registerView(
+      CODE_VIEW_TYPE,
+      (leaf) => new CodeView(leaf, tsConfig, formatService, blameConfig, editorMenuHost),
+    );
     try {
       // One batched call instead of ~95 — far less file-explorer churn on enable.
       this.registerExtensions(CODE_VIEW_EXTENSIONS, CODE_VIEW_TYPE);
@@ -189,6 +219,44 @@ export default class CodeWorkbenchPlugin extends Plugin {
     this.registerEvent(this.app.vault.on("create", repaintIcons));
     this.registerEvent(this.app.vault.on("rename", repaintIcons));
     this.registerEvent(this.app.vault.on("delete", repaintIcons));
+
+    // VS Code-style git status in the explorer: tint changed files/folders and badge them (M/A/D/R/U).
+    // Status is re-read on git ref changes (onGitChanged) and on vault file events; the DOM repaint is
+    // cheap and also runs on layout changes. onChange repaints the hidden-files panel from the same map.
+    this.gitDecorations = new GitDecorations(this.app);
+    this.gitDecorations.onChange = () => this.repaintHiddenGit();
+    if (this.settings.gitDecorations) this.gitDecorations.enable();
+    this.app.workspace.onLayoutReady(() => this.gitDecorations?.refresh());
+    this.registerEvent(this.app.workspace.on("layout-change", () => this.gitDecorations?.refresh()));
+    const restatus = () => this.scheduleGitStatus();
+    this.registerEvent(this.app.vault.on("create", restatus));
+    this.registerEvent(this.app.vault.on("delete", restatus));
+    this.registerEvent(this.app.vault.on("rename", restatus));
+    this.registerEvent(this.app.vault.on("modify", restatus));
+    // Obsidian's vault events fire only for visible files; they miss hidden dot-files (.obsidian,
+    // .gitignore) and anything changed outside Obsidian. Re-read status when the window regains focus
+    // so those changes are picked up on return, the same no-polling trick the branch indicator uses.
+    this.registerDomEvent(window, "focus", () => this.scheduleGitStatus());
+
+    // Right-click a file (in the explorer, a tab, or the editor) to diff its working-tree copy against
+    // the last commit. The /ide diff and the git-graph diff only cover committed changes; this covers
+    // the not-yet-committed ones.
+    this.registerEvent(
+      this.app.workspace.on("file-menu", (menu, file) => {
+        if (file instanceof TFile) this.addWorkingDiffItem(menu, file);
+      }),
+    );
+    this.registerEvent(
+      this.app.workspace.on("editor-menu", (menu, _editor, info) => {
+        menu.addItem((item) =>
+          item
+            .setTitle("Add selection to Claude context")
+            .setIcon("at-sign")
+            .onClick(() => this.addSelectionToContext()),
+        );
+        if (info.file instanceof TFile) this.addWorkingDiffItem(menu, info.file);
+      }),
+    );
 
     // Inline git blame in markdown notes goes through Obsidian's own editor: install the (inert)
     // blame fields in every markdown editor, then feed the active note's blame on navigation and
@@ -229,19 +297,7 @@ export default class CodeWorkbenchPlugin extends Plugin {
     this.addCommand({
       id: "add-selection-to-context",
       name: "Add selection to Claude context",
-      callback: () => {
-        const sel = activeSelection(this.app);
-        if (!sel) {
-          new Notice("Code Workbench: no active selection");
-          return;
-        }
-        ctx.notify("at_mentioned", {
-          filePath: sel.filePath,
-          lineStart: sel.selection.start.line + 1,
-          lineEnd: sel.selection.end.line + 1,
-        });
-        new Notice("Added selection to Claude context");
-      },
+      callback: () => this.addSelectionToContext(),
     });
 
     this.addCommand({
@@ -255,6 +311,17 @@ export default class CodeWorkbenchPlugin extends Plugin {
             if (!ok) new Notice("Code Workbench: nothing to format here");
           });
         }
+        return true;
+      },
+    });
+
+    this.addCommand({
+      id: "save-hidden-file",
+      name: "Save hidden file",
+      checkCallback: (checking: boolean) => {
+        const view = this.app.workspace.getActiveViewOfType(HiddenFileView);
+        if (!view) return false;
+        if (!checking) void view.save();
         return true;
       },
     });
@@ -322,11 +389,14 @@ export default class CodeWorkbenchPlugin extends Plugin {
     this.ctx?.diffs.closeAll();
     this.explorerIcons?.disable();
     this.explorerIcons = null;
+    this.gitDecorations?.disable();
+    this.gitDecorations = null;
     this.lock = null;
     this.server = null;
     this.companion = null;
     this.iconLoader = null;
     if (this.gitRefreshTimer !== null) window.clearTimeout(this.gitRefreshTimer);
+    if (this.gitStatusTimer !== null) window.clearTimeout(this.gitStatusTimer);
     if (this.mdBlameTimer !== null) window.clearTimeout(this.mdBlameTimer);
     this.gitBranchEl = null;
     this.ctx = null;
@@ -343,6 +413,14 @@ export default class CodeWorkbenchPlugin extends Plugin {
     if (on) this.explorerIcons?.enable();
     else this.explorerIcons?.disable();
     this.refreshHiddenTree();
+  }
+
+  // Live toggle from the settings tab: paint or strip the explorer git status decorations, in both
+  // the file explorer and the hidden-files panel.
+  setGitDecorations(on: boolean): void {
+    if (on) this.gitDecorations?.enable();
+    else this.gitDecorations?.disable();
+    this.repaintHiddenGit();
   }
 
   // Live toggle from the settings tab: start or stop the companion vault-tools server.
@@ -399,6 +477,19 @@ export default class CodeWorkbenchPlugin extends Plugin {
     }
   }
 
+  // HiddenFilesHost: the explorer git decorations, so the hidden-files panel can paint the same
+  // status onto its own rows. Null before onload finishes.
+  getGitDecorations(): GitDecorations | null {
+    return this.gitDecorations;
+  }
+
+  // Repaint git status on any open hidden-files panel (a cheap DOM pass, no filesystem re-scan).
+  private repaintHiddenGit(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(HIDDEN_TREE_VIEW_TYPE)) {
+      if (leaf.view instanceof HiddenFilesView) leaf.view.repaintGitStatus();
+    }
+  }
+
   // HiddenFilesHost: the vault's hidden (dot) files for the panel. Obsidian hides these from the
   // explorer; only editable text files are listed (binary/oversized are filtered out).
   async listHiddenFiles(): Promise<HiddenEntry[]> {
@@ -415,10 +506,16 @@ export default class CodeWorkbenchPlugin extends Plugin {
     return this.settings.fileIcons;
   }
 
-  // Open one hidden text file in the in-app editor.
-  async openHiddenFile(abs: string): Promise<void> {
+  // Open one hidden text file in the in-app editor: a new tab (default), a split to the right, or a
+  // new window — matching the file explorer's "Open in new tab / Open to the right" actions.
+  async openHiddenFile(abs: string, mode: "tab" | "split" | "window" = "tab"): Promise<void> {
     try {
-      const leaf = this.app.workspace.getLeaf(true);
+      const leaf =
+        mode === "split"
+          ? this.app.workspace.getLeaf("split")
+          : mode === "window"
+            ? this.app.workspace.getLeaf("window")
+            : this.app.workspace.getLeaf(true);
       await leaf.setViewState({ type: HIDDEN_FILE_VIEW_TYPE, active: true, state: { path: abs } });
       await this.app.workspace.revealLeaf(leaf);
     } catch (e) {
@@ -437,6 +534,79 @@ export default class CodeWorkbenchPlugin extends Plugin {
     return this.companion?.manualAddCommand() ?? null;
   }
 
+  // Send the active editor's current selection to Claude as an @-mention. Shared by the command and
+  // the editor context menu (a markdown note, a code file, or a hidden file).
+  private addSelectionToContext(): void {
+    const sel = activeSelection(this.app);
+    if (!sel) {
+      new Notice("Code Workbench: no active selection");
+      return;
+    }
+    this.ctx?.notify("at_mentioned", {
+      filePath: sel.filePath,
+      lineStart: sel.selection.start.line + 1,
+      lineEnd: sel.selection.end.line + 1,
+    });
+    new Notice("Added selection to Claude context");
+  }
+
+  // Add a "Diff against last commit" entry to a file's context menu.
+  private addWorkingDiffItem(menu: Menu, file: TFile): void {
+    menu.addItem((item) =>
+      item
+        .setTitle("Diff against last commit")
+        .setIcon("git-compare")
+        .onClick(() => void this.openWorkingDiff(file)),
+    );
+  }
+
+  // Diff a vault file's working-tree copy against the last commit. Resolves the absolute path and
+  // hands off to openWorkingDiffAbs (shared with the hidden-file editor).
+  async openWorkingDiff(file: TFile): Promise<void> {
+    const abs = absoluteForVaultPath(this.app, file.path);
+    if (abs) await this.openWorkingDiffAbs(abs, file.name);
+  }
+
+  // Open a read-only diff of a file's working-tree copy (new, on the right) against its last committed
+  // version (HEAD, on the left), by absolute path so it works for vault files and hidden dot-files
+  // alike. A new file shows as fully added; an unchanged file reports there is nothing uncommitted.
+  async openWorkingDiffAbs(absPath: string, displayName: string): Promise<void> {
+    const base = vaultBasePath(this.app);
+    if (!base) return;
+    const repo = await resolveRepository(base);
+    if (repo.state !== "ok" || !repo.root) {
+      new Notice("Code Workbench: not a git repository, or no commits yet");
+      return;
+    }
+    const rel = path.relative(repo.root, absPath).split(path.sep).join("/");
+    const vaultRel = vaultPathForAbsolute(this.app, absPath);
+    const oldText = await loadHeadBlob(repo, rel);
+    let newText = "";
+    if (vaultRel !== null) {
+      try {
+        newText = await this.app.vault.adapter.read(vaultRel);
+      } catch {
+        newText = "";
+      }
+    }
+    if (oldText === newText) {
+      new Notice("Code Workbench: no uncommitted changes in this file");
+      return;
+    }
+    const existing = this.app.workspace.getLeavesOfType(GIT_DIFF_VIEW_TYPE);
+    const leaf = existing[0] ?? this.app.workspace.getLeaf("tab");
+    await leaf.setViewState({ type: GIT_DIFF_VIEW_TYPE, active: true });
+    if (leaf.view instanceof GitDiffView) {
+      leaf.view.setData({
+        title: `${displayName} — working tree vs HEAD`,
+        path: vaultRel ?? displayName,
+        oldContents: oldText,
+        newContents: newText,
+      });
+    }
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
   // Coalesce bursts of events into a single git read.
   private scheduleGitBranchRefresh(): void {
     if (this.gitRefreshTimer !== null) window.clearTimeout(this.gitRefreshTimer);
@@ -444,6 +614,16 @@ export default class CodeWorkbenchPlugin extends Plugin {
       this.gitRefreshTimer = null;
       void this.refreshGitBranch();
     }, 300);
+  }
+
+  // Coalesce vault file events into one git-status read for the explorer decorations.
+  private scheduleGitStatus(): void {
+    if (!this.gitDecorations) return;
+    if (this.gitStatusTimer !== null) window.clearTimeout(this.gitStatusTimer);
+    this.gitStatusTimer = window.setTimeout(() => {
+      this.gitStatusTimer = null;
+      void this.gitDecorations?.update();
+    }, 500);
   }
 
   private async refreshGitBranch(): Promise<void> {
@@ -539,13 +719,14 @@ export default class CodeWorkbenchPlugin extends Plugin {
 
   // A git ref moved (commit, checkout, merge, reset), possibly from outside Obsidian — a terminal,
   // or Claude Code. Re-read everything that reflects history: open graph panels, the status-bar
-  // branch, and inline blame.
+  // branch, inline blame, and the explorer git decorations.
   private onGitChanged(): void {
     for (const leaf of this.app.workspace.getLeavesOfType(GIT_GRAPH_VIEW_TYPE)) {
       if (leaf.view instanceof GitGraphView) void leaf.view.refresh();
     }
     this.scheduleGitBranchRefresh();
     this.refreshAllBlame();
+    void this.gitDecorations?.update();
   }
 
   // Watch the repo's ref log so the graph, branch, and blame refresh themselves when git changes
@@ -796,8 +977,9 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
     );
     feat(
       "Git review",
-      "a branch indicator in the status bar, a branch-graph panel with click-to-diff, and inline " +
-        "git blame on the current line, so you see what changed without leaving Obsidian.",
+      "a branch indicator in the status bar, a branch-graph panel with click-to-diff, inline git " +
+        "blame on the current line, and VS Code-style status marks in the explorer. Right-click a file " +
+        "to diff its uncommitted changes against the last commit, all without leaving Obsidian.",
     );
     feat("File-type icons", "Material file and folder icons in the explorer, fetched on demand and cached.");
     feat(
@@ -946,6 +1128,22 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
           this.plugin.settings.gitBlame = value;
           await this.plugin.saveData(this.plugin.settings);
           this.plugin.refreshAllBlame();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Git status in the explorer")
+      .setDesc(
+        "Mark changed files in the file explorer, like VS Code: a modified file is tinted with an \"M\", " +
+          "a new (untracked) file with a \"U\", and folders that contain changes are tinted too. Hidden " +
+          "dot-files carry the same marks in the Hidden files panel. Status is read from git when the " +
+          "repository or your files change. Shows nothing when the vault is not a git repository. Desktop only.",
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.gitDecorations).onChange(async (value) => {
+          this.plugin.settings.gitDecorations = value;
+          this.plugin.setGitDecorations(value);
+          await this.plugin.saveData(this.plugin.settings);
         }),
       );
 

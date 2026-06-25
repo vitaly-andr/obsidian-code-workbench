@@ -2,7 +2,16 @@
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
 import { execFile } from "child_process";
-import type { BlameLine, BranchIdentity, CommitRecord, CurrentBranch, Ref, RepositorySource } from "./types";
+import type {
+  BlameLine,
+  BranchIdentity,
+  CommitRecord,
+  CurrentBranch,
+  GitStatusCode,
+  GitStatusEntry,
+  Ref,
+  RepositorySource,
+} from "./types";
 
 // Run git with an argument array (never a shell string) and a fixed cwd, so no untrusted
 // text is interpreted by a shell. Never rejects: a non-zero exit is normal control flow.
@@ -232,4 +241,69 @@ export async function loadFileDiff(
     oldText: !oldR.failed && oldR.code === 0 ? oldR.stdout : "",
     newText: !newR.failed && newR.code === 0 ? newR.stdout : "",
   };
+}
+
+// Contents of a path as of HEAD (the last commit), for a working-tree diff against the working copy.
+// Empty when the path is new (not committed yet) or unreadable, so the diff renders it as fully added.
+export async function loadHeadBlob(repo: RepositorySource, relPath: string): Promise<string> {
+  if (!repo.root || repo.state !== "ok") return "";
+  const r = await runGit(repo.root, ["show", `HEAD:${relPath}`]);
+  return !r.failed && r.code === 0 ? r.stdout : "";
+}
+
+// Reduce a porcelain XY status pair to one code: prefer the worktree column (Y), then the index (X).
+function reduceStatus(x: string, y: string): GitStatusCode | null {
+  for (const c of [y, x]) {
+    if (c === "M") return "M";
+    if (c === "A") return "A";
+    if (c === "D") return "D";
+    if (c === "R") return "R";
+  }
+  return null;
+}
+
+// Parse `git status --porcelain` (v1, no -z) into one status code per path. Pure (no I/O), so it is
+// unit-testable. Untracked -> U; renames/copies report the new path ("R  old -> new").
+export function parseGitStatus(stdout: string): GitStatusEntry[] {
+  const out: GitStatusEntry[] = [];
+  for (const line of stdout.split("\n")) {
+    if (line.length < 4) continue;
+    const x = line[0];
+    const y = line[1];
+    let rest = line.slice(3);
+    if (x === "?" && y === "?") {
+      out.push({ path: rest, code: "U" });
+      continue;
+    }
+    const arrow = rest.indexOf(" -> ");
+    if (arrow !== -1) rest = rest.slice(arrow + 4);
+    const code = reduceStatus(x, y);
+    if (code && rest) out.push({ path: rest, code });
+  }
+  return out;
+}
+
+// Parse the `!!` (ignored) entries of `git status --porcelain --ignored`. Pure (no I/O). An ignored
+// directory ends with "/" — the trailing slash is stripped, and the caller treats it as covering its
+// descendants. Other status lines are skipped here (parseGitStatus handles them).
+export function parseGitIgnored(stdout: string): string[] {
+  const out: string[] = [];
+  for (const line of stdout.split("\n")) {
+    if (!line.startsWith("!! ")) continue;
+    const p = line.slice(3).replace(/\/$/, "");
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+// Working-tree changes plus ignored paths, for the explorer decorations. Paths are repo-root-relative
+// (forward slashes). `--ignored` adds the `!!` lines; it does not change the M/A/D/U/R output.
+export async function loadGitStatus(
+  repo: RepositorySource,
+): Promise<{ changed: GitStatusEntry[]; ignored: string[] }> {
+  if (!repo.root || repo.state !== "ok") return { changed: [], ignored: [] };
+  // -c core.quotepath=false keeps non-ASCII paths literal (UTF-8) instead of octal-escaped.
+  const r = await runGit(repo.root, ["-c", "core.quotepath=false", "status", "--porcelain", "--ignored"]);
+  if (r.failed || r.code !== 0) return { changed: [], ignored: [] };
+  return { changed: parseGitStatus(r.stdout), ignored: parseGitIgnored(r.stdout) };
 }
