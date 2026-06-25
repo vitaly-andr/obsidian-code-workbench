@@ -4,6 +4,12 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [3.2.1] - 2026-06-26
+
+### Fixed
+- The Rename dialog for a hidden file rejects a name that contains a path separator (`/` or `\`), so a
+  rename stays within the same folder instead of moving the file.
+
 ## [3.2.0] - 2026-06-26
 
 ### Added
