@@ -31,6 +31,15 @@ function svgEl<K extends keyof SVGElementTagNameMap>(
   return el;
 }
 
+// The mainline the graph keeps on the left (lane 0): a local `main`/`master` branch if present,
+// else the HEAD commit, else the newest commit. Returns its hash for layoutGraph's trunk pinning.
+function pickTrunkTip(commits: CommitRecord[]): string | undefined {
+  const branch = (name: string): CommitRecord | undefined =>
+    commits.find((c) => c.refs.some((r) => r.kind === "branch" && r.name === name));
+  const head = commits.find((c) => c.refs.some((r) => r.kind === "head"));
+  return (branch("main") ?? branch("master") ?? head ?? commits[0])?.hash;
+}
+
 // A left-sidebar panel that draws the repository's history as a branch graph (read-only):
 // commits newest-first, lanes per branch, edges for branch/merge, ref labels. Clicking a commit
 // shows its branches and changed files in a detail pane at the bottom. Reuses the shared git read
@@ -72,7 +81,7 @@ export class GitGraphView extends ItemView {
       if (repo.state === "empty") return this.renderMessage("No commits yet.");
       const { commits } = await loadCommits(repo);
       if (commits.length === 0) return this.renderMessage("No commits yet.");
-      this.renderGraph(commits, layoutGraph(commits));
+      this.renderGraph(commits, layoutGraph(commits, pickTrunkTip(commits)));
     } catch (e) {
       this.renderMessage(`Git graph error: ${e instanceof Error ? e.message : String(e)}`);
     }

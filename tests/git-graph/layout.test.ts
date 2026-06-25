@@ -49,4 +49,28 @@ describe("layoutGraph (curved)", () => {
     expect(m.rows[0].links.filter((l) => l.merge).length).toBe(2);
     expect(m.laneCount).toBeGreaterThanOrEqual(3);
   });
+
+  it("trunkTip pins the mainline to lane 0 even when a feature tip sorts first", () => {
+    const commits = [
+      { hash: "feat2", parents: ["feat1"] }, // feature tip — sorts first in --all topo order
+      { hash: "feat1", parents: ["base"] },
+      { hash: "main2", parents: ["main1"] }, // the mainline tip, lower in the list
+      { hash: "main1", parents: ["base"] },
+      { hash: "base", parents: [] },
+    ];
+    // Without a trunk, the feature grabs lane 0 and the mainline drifts to the right.
+    expect(lanesOf(layoutGraph(commits))).toEqual([0, 0, 1, 1, 0]);
+    // Pinned to main: the mainline stays in lane 0, the feature is pushed to lane 1.
+    const m = layoutGraph(commits, "main2");
+    expect(lanesOf(m)).toEqual([1, 1, 0, 0, 0]);
+    expect(m.laneCount).toBe(2);
+  });
+
+  it("an unknown trunkTip falls back to the unpinned layout", () => {
+    const commits = [
+      { hash: "B", parents: ["A"] },
+      { hash: "A", parents: [] },
+    ];
+    expect(lanesOf(layoutGraph(commits, "missing"))).toEqual([0, 0]);
+  });
 });
