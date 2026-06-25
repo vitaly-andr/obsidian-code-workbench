@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
-import { App, Modal, Setting } from "obsidian";
+import { App, Modal, Notice, Setting } from "obsidian";
 
 // A small text-prompt modal (Obsidian ships no generic prompt). Used to rename a hidden file.
 export class RenameModal extends Modal {
@@ -40,6 +40,12 @@ export class RenameModal extends Modal {
     const v = this.value.trim();
     if (!v || v === this.initial) {
       this.close();
+      return;
+    }
+    // Rename only changes the name within the same folder; a path separator would move the file (and,
+    // unnormalized, could escape it). Reject it and let the user correct the input.
+    if (v.includes("/") || v.includes("\\")) {
+      new Notice("Code Workbench: a name can't contain a path separator");
       return;
     }
     this.close();
