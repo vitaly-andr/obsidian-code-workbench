@@ -53,7 +53,7 @@ Review what the AI committed without leaving Obsidian. The branch shows in the s
 
 <img src="docs/file-icons.png" alt="Material file-type icons in the file explorer" width="100%">
 
-**Edit hidden files.** A *Hidden files* panel lists the dot-files Obsidian normally hides (`.mcp.json`, `.gitignore`, `.obsidian/…`) as a tree and opens them in the editor.
+**Edit hidden files.** A *Hidden files* panel lists the dot-files Obsidian normally hides (`.mcp.json`, `.gitignore`, and the config folder) as a tree and opens them in the editor.
 
 <img src="docs/hidden-files.png" alt="The Hidden files panel listing a vault's dot-files as a tree" width="100%">
 

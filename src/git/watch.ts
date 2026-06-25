@@ -34,12 +34,14 @@ export async function watchGitRefs(
 ): Promise<() => void> {
   const target = await gitPath(root, "logs/HEAD");
   let watcher: FSWatcher | null = null;
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  // window.* timers (not the bare globals) for popout-window compatibility, like the rest of the plugin.
+  // window.setTimeout returns a number (the DOM signature); match main.ts's timer fields.
+  let timer: number | null = null;
   let disposed = false;
 
   const fire = (): void => {
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
+    if (timer) window.clearTimeout(timer);
+    timer = window.setTimeout(() => {
       if (!disposed) onChange();
     }, debounceMs);
   };
@@ -60,7 +62,7 @@ export async function watchGitRefs(
 
   return () => {
     disposed = true;
-    if (timer) clearTimeout(timer);
+    if (timer) window.clearTimeout(timer);
     watcher?.close();
     watcher = null;
   };

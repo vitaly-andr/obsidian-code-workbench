@@ -984,8 +984,8 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
     feat("File-type icons", "Material file and folder icons in the explorer, fetched on demand and cached.");
     feat(
       "Edit hidden files",
-      "a Hidden files panel lists the dot-files Obsidian normally hides (.mcp.json, .gitignore, " +
-        ".obsidian/…) as a tree and opens them in the editor.",
+      "a Hidden files panel lists the dot-files Obsidian normally hides (.mcp.json, .gitignore, and " +
+        "the config folder) as a tree and opens them in the editor.",
     );
 
     addShot("DIFF_SHOT", "A Claude edit shown as a Keep / Reject diff");
