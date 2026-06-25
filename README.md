@@ -124,8 +124,10 @@ A simple highlighter is always on. Turn on **Settings → Code Workbench → Ena
 2. Turn on **Enable syntax highlighting** in the plugin settings for tree-sitter colors and error underlines.
 3. To format, open the Command Palette (`Ctrl/Cmd+P`), type **Format code file**, and run it. You can assign a hotkey under **Settings → Hotkeys**.
 4. Launch Claude: click **▶ Launch Claude** in the status bar (or **Run Claude in this vault** in the plugin settings). It opens a terminal in the vault and starts `claude`, already connected to Obsidian; the status bar shows `Claude ●`. Run `/ide` and pick **Obsidian** only if you start `claude` yourself in a separate terminal, or to reconnect after updating or reloading the plugin (the server restarts on a new port).
-5. Share a selection: select text and run **Add selection to Claude context** from the Command Palette to send it as an `@`-mention. With **Share selection automatically** on, the current selection is sent as it changes.
+5. Share a selection: select text in a note, a code file, or a hidden file, then right-click → **Add selection to Claude context** (or run the same command from the palette) to send it as an `@`-mention. With **Share selection automatically** on, the current selection is sent as it changes.
 6. Claude's edits open as a **Keep/Reject** diff you accept or reject.
+7. Track changes: edited files are marked in the explorer (`M` modified, `U` new), and right-clicking any file gives **Diff against last commit** — a read-only diff of your working copy against `HEAD`. The branch shows in the status bar and full history in the git-graph panel.
+8. Edit hidden files: turn on **Show hidden files** to get a panel of the dot-files Obsidian hides. Right-click a file there to open, make a copy, rename, delete to trash, show it in the system file manager, copy its path, or diff it.
 
 <img src="docs/connect.png" alt="Claude Code's /ide picker with Obsidian connected" width="100%">
 
