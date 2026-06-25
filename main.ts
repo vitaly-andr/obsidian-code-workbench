@@ -36,6 +36,7 @@ import { GitGraphView } from "./src/views/git-graph-view";
 import { GitDiffView } from "./src/views/git-diff-view";
 import { HiddenEntry, listHiddenFiles } from "./src/views/hidden-files";
 import { getCurrentBranch, loadBlame, resolveRepository } from "./src/git/log";
+import { watchGitRefs } from "./src/git/watch";
 import type { CurrentBranch } from "./src/git/types";
 
 // window.open is unreliable in Obsidian's renderer; open external URLs through Electron's shell,
@@ -101,6 +102,7 @@ export default class CodeWorkbenchPlugin extends Plugin {
   private gitBranchEl: HTMLElement | null = null;
   private gitRefreshTimer: number | null = null;
   private mdBlameTimer: number | null = null;
+  private gitWatchDispose: (() => void) | null = null;
 
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -196,6 +198,7 @@ export default class CodeWorkbenchPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on("file-open", () => this.scheduleMarkdownBlame()));
     this.registerEvent(this.app.workspace.on("editor-change", () => this.scheduleMarkdownBlame(1200)));
     this.app.workspace.onLayoutReady(() => this.scheduleMarkdownBlame());
+    void this.setupGitWatch();
 
     // Track selection: cache it (for getLatestSelection) and push selection_changed to the CLI.
     let selectionTimer: number | null = null;
@@ -532,6 +535,37 @@ export default class CodeWorkbenchPlugin extends Plugin {
       if (leaf.view instanceof CodeView) leaf.view.applyBlame();
     }
     void this.refreshMarkdownBlame();
+  }
+
+  // A git ref moved (commit, checkout, merge, reset), possibly from outside Obsidian — a terminal,
+  // or Claude Code. Re-read everything that reflects history: open graph panels, the status-bar
+  // branch, and inline blame.
+  private onGitChanged(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(GIT_GRAPH_VIEW_TYPE)) {
+      if (leaf.view instanceof GitGraphView) void leaf.view.refresh();
+    }
+    this.scheduleGitBranchRefresh();
+    this.refreshAllBlame();
+  }
+
+  // Watch the repo's ref log so the graph, branch, and blame refresh themselves when git changes
+  // under us. Best-effort: no repo, or no watchable log, simply means no auto-refresh.
+  private async setupGitWatch(): Promise<void> {
+    const base = vaultBasePath(this.app);
+    if (!base) return;
+    let root: string | null = null;
+    try {
+      const repo = await resolveRepository(base);
+      root = repo.state === "ok" ? repo.root : null;
+    } catch (e) {
+      warn("git watch: could not resolve repository", e);
+    }
+    if (!root) return;
+    this.gitWatchDispose = await watchGitRefs(root, () => this.onGitChanged());
+    this.register(() => {
+      this.gitWatchDispose?.();
+      this.gitWatchDispose = null;
+    });
   }
 
   private refreshStatus(): void {

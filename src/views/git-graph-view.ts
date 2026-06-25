@@ -58,7 +58,6 @@ export class GitGraphView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    this.addAction("refresh-cw", "Refresh git graph", () => void this.refresh());
     await this.refresh();
   }
 
