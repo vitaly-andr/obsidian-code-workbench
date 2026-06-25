@@ -4,6 +4,28 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [3.2.0] - 2026-06-26
+
+### Added
+- Working-tree diff. Right-click a file — in the explorer, on a tab, or in the editor — and "Diff
+  against last commit" opens a read-only side-by-side diff of its uncommitted changes against `HEAD`
+  (working copy on the right). Works for Markdown notes, code files, and hidden dot-files.
+- Git status in the file explorer, VS Code style: changed files are tinted and badged (`M` modified,
+  `U` untracked, `A` added, `D` deleted, `R` renamed), folders that contain changes are tinted, and
+  git-ignored files and folders are dimmed. The same marks appear in the Hidden files panel — the
+  only place dot-files are shown. Refreshes on commit/checkout, on edits, and on window focus. Toggle
+  under Settings → "Git status in the explorer". Shows nothing when the vault is not a git repository.
+- "Add selection to Claude context" in the right-click menu of Markdown notes, code files, and hidden
+  files (previously available only as a command).
+
+### Changed
+- Hidden files are now first-class. The hidden-file editor has a Save button and a "Save hidden file"
+  command (and Mod+S), shows the file name with folder breadcrumbs in its header instead of a generic
+  "Hidden file" label, reports its selection to Claude over `/ide`, and has a full right-click menu
+  (cut/copy/paste, share selection, diff). The Hidden files panel gains a right-click menu too: open,
+  make a copy, rename, delete to trash, show in system explorer, copy path, and diff against the last
+  commit. Desktop only.
+
 ## [3.1.4] - 2026-06-25
 
 ### Changed
