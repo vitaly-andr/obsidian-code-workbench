@@ -4,6 +4,13 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [3.1.4] - 2026-06-25
+
+### Changed
+- The git graph keeps the mainline on the left. The first-parent chain of `main` (or `master`,
+  else the checked-out branch) stays in the leftmost lane as a straight line, and other branches
+  are drawn to its right, instead of whichever branch tip happened to sort first.
+
 ## [3.1.3] - 2026-06-25
 
 ### Fixed
