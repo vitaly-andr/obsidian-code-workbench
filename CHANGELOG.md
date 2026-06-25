@@ -4,6 +4,13 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [3.2.2] - 2026-06-26
+
+### Fixed
+- Plugin-review lint: the git ref-log watcher now uses `window.setTimeout`/`window.clearTimeout`
+  (popout-window compatibility) instead of the bare globals. Also reworded a settings description so
+  it no longer names the config folder `.obsidian` (it is user-configurable).
+
 ## [3.2.1] - 2026-06-26
 
 ### Fixed
