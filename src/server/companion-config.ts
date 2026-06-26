@@ -107,7 +107,7 @@ export class CompanionConfig {
         await fs.writeFile(backup, existing).catch((e) => warn("mcp backup failed", e));
       }
       try {
-        const parsed = JSON.parse(existing);
+        const parsed: unknown = JSON.parse(existing);
         if (parsed && typeof parsed === "object") config = parsed as Record<string, unknown>;
       } catch {
         // unparseable foreign file — already backed up; start fresh

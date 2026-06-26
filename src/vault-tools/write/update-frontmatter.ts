@@ -10,7 +10,7 @@ function frontmatterFromApproved(content: string): Record<string, unknown> | nul
   const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content);
   if (!match) return null;
   try {
-    const parsed = parseYaml(match[1]);
+    const parsed: unknown = parseYaml(match[1]);
     return parsed && typeof parsed === "object" && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
       : null;

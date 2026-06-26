@@ -28,10 +28,10 @@ export function layoutGraph(commits: ReadonlyArray<GraphCommit>, trunkTip?: stri
 
   // lanes[col] = the hash this column is waiting for (its open downward edge), or null when free.
   const lanes: (string | null)[] = reserve0 ? [null] : [];
-  const laneOf: number[] = new Array(commits.length);
-  const stateAfter: (string | null)[][] = new Array(commits.length);
+  const laneOf: number[] = new Array<number>(commits.length);
+  const stateAfter: (string | null)[][] = new Array<(string | null)[]>(commits.length);
   // Columns this commit routes its parents into, with whether each is a merge edge.
-  const outgoing: { col: number; merge: boolean }[][] = new Array(commits.length);
+  const outgoing: { col: number; merge: boolean }[][] = new Array<{ col: number; merge: boolean }[]>(commits.length);
 
   const firstFree = (): number => {
     for (let i = reserve0 ? 1 : 0; i < lanes.length; i++) {

@@ -14,7 +14,7 @@ function loadEngine() {
     engine = (async () => {
       const [v2, rustPluginNs] = await Promise.all([
         import("prettier-v2/standalone") as Promise<{ format: (src: string, opts: unknown) => string }>,
-        import("prettier-plugin-rust"),
+        import("prettier-plugin-rust") as Promise<{ default?: unknown }>,
       ]);
       return {
         format: v2.format,

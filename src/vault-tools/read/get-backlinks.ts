@@ -24,7 +24,11 @@ function backlinkPositions(app: { metadataCache: unknown }, file: TFile): Map<st
     const result = mc.getBacklinksForFile(file) as { data?: unknown };
     const data = result?.data;
     const entries: [string, unknown][] =
-      data instanceof Map ? [...data.entries()] : data && typeof data === "object" ? Object.entries(data) : [];
+      data instanceof Map
+        ? [...(data as Map<string, unknown>).entries()]
+        : data && typeof data === "object"
+          ? Object.entries(data as Record<string, unknown>)
+          : [];
     for (const [srcPath, refs] of entries) {
       if (!Array.isArray(refs)) continue;
       const positions = refs
