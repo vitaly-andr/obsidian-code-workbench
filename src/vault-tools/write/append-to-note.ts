@@ -8,10 +8,10 @@ import { fail, ok, ToolHandler } from "../types";
 // change is applied with vault.process as a concatenation, so the existing body is never overwritten.
 export const appendToNote: ToolHandler = async (args, ctx, signal) => {
   const { app } = ctx;
-  const file = resolveVaultFile(app, String(args.path ?? ""));
+  const file = resolveVaultFile(app, typeof args.path === "string" ? args.path : "");
   if (!file) return fail("not found");
 
-  const content = String(args.content ?? "");
+  const content = typeof args.content === "string" ? args.content : "";
   const position = args.position === "prepend" ? "prepend" : "append";
   const current = await app.vault.cachedRead(file);
   const preview = position === "prepend" ? content + current : current + content;

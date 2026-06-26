@@ -8,7 +8,7 @@ import { fail, ok, ToolHandler } from "../types";
 // via vault.create after approval. Refuses to overwrite an existing file; vault-scoped.
 export const createNote: ToolHandler = async (args, ctx, signal) => {
   const { app } = ctx;
-  const scoped = scopeVaultPath(app, String(args.path ?? ""));
+  const scoped = scopeVaultPath(app, typeof args.path === "string" ? args.path : "");
   if (scoped === null || scoped === "") return fail("invalid path");
   if (app.vault.getAbstractFileByPath(scoped)) return fail("already exists");
 

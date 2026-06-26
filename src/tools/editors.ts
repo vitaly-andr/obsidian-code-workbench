@@ -62,7 +62,7 @@ export function getOpenEditors(_args: Record<string, unknown>, ctx: IdeContext):
 
 // §7.6
 export function checkDocumentDirty(args: Record<string, unknown>, ctx: IdeContext): McpResult {
-  const filePath = String(args.filePath ?? "");
+  const filePath = typeof args.filePath === "string" ? args.filePath : "";
   if (!findOpenByAbsolutePath(ctx.app, filePath)) {
     return wrap({ success: false, message: `Document not open: ${filePath}` });
   }
@@ -71,7 +71,7 @@ export function checkDocumentDirty(args: Record<string, unknown>, ctx: IdeContex
 
 // §7.7
 export async function saveDocument(args: Record<string, unknown>, ctx: IdeContext): Promise<McpResult> {
-  const filePath = String(args.filePath ?? "");
+  const filePath = typeof args.filePath === "string" ? args.filePath : "";
   const found = findOpenByAbsolutePath(ctx.app, filePath);
   if (!found) {
     return wrap({ success: false, message: `Document not open: ${filePath}` });

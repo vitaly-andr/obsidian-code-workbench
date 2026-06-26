@@ -9,7 +9,7 @@ const ENTRY_CAP = 500;
 
 // Direct children (files and subfolders) of a vault folder. Bounded with `truncated`.
 export const listFilesInFolder: ToolHandler = async (args, ctx) => {
-  const folder = resolveVaultFolder(ctx.app, String(args.folder ?? ""));
+  const folder = resolveVaultFolder(ctx.app, typeof args.folder === "string" ? args.folder : "");
   if (!folder) return fail("not found");
 
   const all = folder.children.map((child) => ({

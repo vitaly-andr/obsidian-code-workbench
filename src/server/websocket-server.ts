@@ -109,7 +109,11 @@ export class IdeServer {
     // One dispatcher per connection isolates in-flight request ids.
     const dispatcher = new Dispatcher(this.ctx);
     ws.on("message", (data) => {
-      const raw = typeof data === "string" ? data : data.toString("utf8");
+      const raw =
+        typeof data === "string" ? data
+        : Buffer.isBuffer(data) ? data.toString("utf8")
+        : Array.isArray(data) ? Buffer.concat(data).toString("utf8")
+        : Buffer.from(data).toString("utf8");
       dispatcher
         .handle(raw)
         .then((response) => {

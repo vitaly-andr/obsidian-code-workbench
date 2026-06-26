@@ -21,7 +21,7 @@ export const getOutgoingLinks: ToolHandler = async (args, ctx) => {
   if (indexing) return indexing;
 
   const { app } = ctx;
-  const file = resolveVaultFile(app, String(args.path ?? ""));
+  const file = resolveVaultFile(app, typeof args.path === "string" ? args.path : "");
   if (!file) return fail("not found");
 
   const cache = app.metadataCache.getFileCache(file);

@@ -24,7 +24,7 @@ function frontmatterFromApproved(content: string): Record<string, unknown> | nul
 // approved — including edits they made in the diff — via processFrontMatter, which keeps the body intact.
 export const updateFrontmatter: ToolHandler = async (args, ctx, signal) => {
   const { app } = ctx;
-  const file = resolveVaultFile(app, String(args.path ?? ""));
+  const file = resolveVaultFile(app, typeof args.path === "string" ? args.path : "");
   if (!file) return fail("not found");
   if (typeof args.fields !== "object" || args.fields === null || Array.isArray(args.fields)) {
     return fail("invalid path");

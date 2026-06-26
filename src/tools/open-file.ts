@@ -16,7 +16,7 @@ function toInt(value: unknown): number | null {
 // form — a direct text content block (not the §6.5 wrapper).
 export async function openFile(args: Record<string, unknown>, ctx: IdeContext): Promise<McpResult> {
   const app = ctx.app;
-  const filePath = String(args.filePath ?? "");
+  const filePath = typeof args.filePath === "string" ? args.filePath : "";
   const rel = vaultPathForAbsolute(app, filePath);
   const file = rel != null ? app.vault.getAbstractFileByPath(rel) : null;
 

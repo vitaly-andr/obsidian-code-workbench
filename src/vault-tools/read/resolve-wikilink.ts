@@ -13,7 +13,7 @@ export const resolveWikilink: ToolHandler = async (args, ctx) => {
   if (indexing) return indexing;
 
   const { app } = ctx;
-  const raw = String(args.linkpath ?? "");
+  const raw = typeof args.linkpath === "string" ? args.linkpath : "";
   const fromPath = typeof args.fromPath === "string" ? args.fromPath : "";
 
   // Drop the display alias, then let getLinkpath strip the #heading / ^block subpath.

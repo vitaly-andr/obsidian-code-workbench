@@ -8,10 +8,10 @@ import { fail, ok, ToolHandler } from "../types";
 // [[link]] — the link-preserving headline. Confirmed by the user; refuses if the destination exists.
 export const renameNote: ToolHandler = async (args, ctx) => {
   const { app } = ctx;
-  const file = resolveVaultFile(app, String(args.path ?? ""));
+  const file = resolveVaultFile(app, typeof args.path === "string" ? args.path : "");
   if (!file) return fail("not found");
 
-  const newPath = scopeVaultPath(app, String(args.newPath ?? ""));
+  const newPath = scopeVaultPath(app, typeof args.newPath === "string" ? args.newPath : "");
   if (newPath === null || newPath === "") return fail("invalid path");
   if (app.vault.getAbstractFileByPath(newPath)) return fail("destination exists");
 

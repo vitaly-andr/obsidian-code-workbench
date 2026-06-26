@@ -44,7 +44,7 @@ function scoreText(search: Scorer, text: string, matchedIn: MatchedIn): Omit<Sco
 // regardless of vault size (no per-query body reads). The best-scoring field per file wins.
 export const searchVault: ToolHandler = async (args, ctx) => {
   const { app } = ctx;
-  const query = String(args.query ?? "");
+  const query = typeof args.query === "string" ? args.query : "";
   const limit =
     typeof args.limit === "number" && Number.isFinite(args.limit)
       ? Math.max(1, Math.min(MAX_LIMIT, Math.floor(args.limit)))

@@ -8,7 +8,7 @@ import { fail, ok, ToolHandler } from "../types";
 // never a permanent unlink, always recoverable. Confirmed by the user.
 export const deleteNote: ToolHandler = async (args, ctx) => {
   const { app } = ctx;
-  const file = resolveVaultFile(app, String(args.path ?? ""));
+  const file = resolveVaultFile(app, typeof args.path === "string" ? args.path : "");
   if (!file) return fail("not found");
 
   const approved = await ctx.approval.confirm({
