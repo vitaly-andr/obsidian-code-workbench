@@ -301,15 +301,6 @@
   color: var(--text-muted);
   margin-bottom: 2px;
 }
-.cw-coin-addr {
-  display: block;
-  user-select: all;
-  word-break: break-all;
-  font-size: 12px;
-  padding: 4px 6px;
-  background: var(--background-primary-alt);
-  border-radius: 4px;
-}
 .cw-coin-qr {
   display: block;
   width: 128px;

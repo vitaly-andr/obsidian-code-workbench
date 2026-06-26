@@ -5,6 +5,6 @@
   "minAppVersion": "1.7.2",
   "description": "Let Claude maintain your vault: link-preserving edits you approve, plus a real code editor with syntax highlighting, diagnostics, formatting, diffs, git review, and inline git blame for 50+ languages.",
   "author": "Vitaly Andrianov",
-  "fundingUrl": "https://github.com/vitaly-andr/obsidian-code-workbench/blob/main/SUPPORT.md",
+  "fundingUrl": "https://raw.githubusercontent.com/vitaly-andr/obsidian-code-workbench/main/SUPPORT.md",
   "isDesktopOnly": true
 }

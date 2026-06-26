@@ -1237,22 +1237,17 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
     donate.createEl("summary", { text: "♥ Support with crypto" });
     donate.createEl("p", {
       cls: "setting-item-description",
-      text: "If it helps you, a crypto tip is welcome (any amount). Click an address to select it.",
+      text: "If it helps your work, you can support the coffee and tools behind it.",
     });
-    const coin = (label: string, addr: string, qrKey: string): void => {
+    const coin = (label: string, qrKey: string): void => {
       const row = donate.createDiv({ cls: "cw-coin" });
       row.createEl("div", { cls: "cw-coin-label", text: label });
-      row.createEl("code", { cls: "cw-coin-addr", text: addr });
       const img = row.createEl("img", { cls: "cw-coin-qr", attr: { alt: `${label} QR` } });
       pendingShots.push([img, qrKey]);
     };
-    coin(
-      "EVM — USDT / USDC / ETH (Polygon, Base, BSC, Arbitrum)",
-      "0x3F0ce81a099D8e8dDbfADa0350a933fBA967b63F",
-      "QR_EVM",
-    );
-    coin("USDT — TRON / TRC20", "TSmwsds6rj9LtiFdPrx6k7yan96B5VEt9x", "QR_TRON");
-    coin("Bitcoin", "bc1qgh6hnuldrnvyjqrka3m0rfmznxjzmkkp8g9jrg", "QR_BTC");
+    coin("EVM — USDT / USDC / ETH (Polygon, Base, BSC, Arbitrum)", "QR_EVM");
+    coin("USDT — TRON / TRC20", "QR_TRON");
+    coin("Bitcoin", "QR_BTC");
 
     new Setting(support)
       .setName("Star on GitHub")
