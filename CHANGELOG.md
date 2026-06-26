@@ -4,6 +4,13 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [3.2.4] - 2026-06-26
+
+### Changed
+- Crypto support addresses in settings now show as QR codes only; the plaintext addresses are no
+  longer included in the plugin bundle.
+- The funding link now uses a CDN-hosted URL.
+
 ## [3.2.3] - 2026-06-26
 
 ### Changed
