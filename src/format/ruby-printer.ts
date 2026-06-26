@@ -13,7 +13,7 @@
 // Import doc builders from the lightweight `prettier/doc` entry, NOT `prettier` — the latter pulls
 // the full Prettier (all built-in language plugins), adding ~4MB to the bundle.
 import { builders } from "prettier/doc";
-import type { Doc as PrettierDoc, Plugin } from "prettier";
+import type { AstPath, Doc as PrettierDoc, ParserOptions, Plugin, Printer } from "prettier";
 
 const {
   group,
@@ -25,16 +25,84 @@ const {
   literalline,
 } = builders;
 
-// Prism nodes are loosely typed; we read fields dynamically and rely on the source-fallback for
-// anything unexpected, so `any` is the pragmatic choice here.
-type AnyNode = any;
+// A source location as reported by @ruby/prism.
+interface Location {
+  startOffset: number;
+  length: number;
+}
+
+// Prism AST nodes are class instances discriminated by `constructor.name` (see nodeType), not a
+// string-tagged union. This lists every field the printer reads. A few names are polymorphic across
+// node types: `body` is a single StatementsNode on DefNode/ClassNode but the statement list on
+// StatementsNode; `arguments_` is an ArgumentsNode on CallNode but a node list on ArgumentsNode.
+// Those are typed for prettier's path navigation (which needs the array shape) and re-read via
+// `asNode`/`argList` where a node carries the other shape. Children absent on a given node are
+// null/undefined at runtime; the existing guards handle that, so children are typed non-optional to
+// keep prettier's path generics happy.
+interface RubyNode {
+  location: Location;
+  __rubyState?: RubyState;
+  name?: string;
+  unescaped?: string | { value?: string };
+  receiver: RubyNode;
+  parameters: RubyNode;
+  statements: RubyNode;
+  arguments_: RubyNode;
+  block: RubyNode;
+  value: RubyNode;
+  key: RubyNode;
+  left: RubyNode;
+  right: RubyNode;
+  predicate: RubyNode;
+  superclass: RubyNode;
+  constantPath: RubyNode;
+  constant_path: RubyNode;
+  elseClause: RubyNode;
+  subsequent: RubyNode;
+  rest: RubyNode;
+  keywordRest: RubyNode;
+  body: RubyNode[];
+  elements: RubyNode[];
+  conditions: RubyNode[];
+  requireds: RubyNode[];
+  optionals: RubyNode[];
+  posts: RubyNode[];
+  keywords: RubyNode[];
+  endKeywordLoc?: Location | null;
+  openingLoc?: Location | null;
+  callOperatorLoc?: Location | null;
+  ifKeywordLoc?: Location | null;
+  operatorLoc?: Location | null;
+  nameLoc?: Location | null;
+  lparenLoc?: Location | null;
+}
+
 type Doc = PrettierDoc;
 
+// A prettier path over our nodes, and the print callback (invoked with no selector to print the
+// current node).
+type NodePath = AstPath<RubyNode>;
+type PrintFn = () => Doc;
+
+// Read a polymorphic field as a single node: it is typed as the array shape for path navigation but
+// carried as a single child on some node types. Cast-only; no runtime change.
+function asNode(value: RubyNode | RubyNode[] | null | undefined): RubyNode | null {
+  return (value as RubyNode | null | undefined) ?? null;
+}
+
+// Read a CallNode/ArgumentsNode argument list as an array regardless of which node carries it.
+function argList(args: RubyNode): RubyNode[] {
+  return (args.arguments_ as unknown as RubyNode[] | undefined) ?? [];
+}
+
+interface PrismComment {
+  location: Location;
+}
+
 export interface PrismParseResult {
-  value: AnyNode;
-  errors: any[];
-  comments?: any[];
-  [k: string]: any;
+  value: RubyNode;
+  errors: unknown[];
+  comments?: PrismComment[];
 }
 
 const AST_FORMAT = "ruby-ast";
@@ -49,26 +117,26 @@ interface RubyState {
   comments: Array<{ start: number; end: number; text: string }>;
 }
 
-function nodeType(node: AnyNode): string {
+function nodeType(node: RubyNode | null): string {
   return node && node.constructor ? node.constructor.name : "";
 }
 
-function startOf(node: AnyNode): number {
+function startOf(node: RubyNode): number {
   return node.location.startOffset;
 }
 
-function endOf(node: AnyNode): number {
+function endOf(node: RubyNode): number {
   return node.location.startOffset + node.location.length;
 }
 
-function locText(state: RubyState, loc: any): string {
+function locText(state: RubyState, loc: Location | null | undefined): string {
   if (!loc) return "";
   return state.source.slice(loc.startOffset, loc.startOffset + loc.length);
 }
 
 // Slice original source for a node and re-emit it verbatim, preserving internal newlines without
 // imposing our own indentation (literalline keeps the slice as-is across line breaks).
-function sourceFallback(state: RubyState, node: AnyNode): Doc {
+function sourceFallback(state: RubyState, node: RubyNode): Doc {
   const text = state.source.slice(startOf(node), endOf(node));
   return verbatim(text);
 }
@@ -117,7 +185,7 @@ function blankLinesBetween(state: RubyState, fromEnd: number, toStart: number): 
 // enclosing list claims them, never an outer one).
 function printStatementList(
   state: RubyState,
-  nodes: AnyNode[],
+  nodes: RubyNode[],
   printed: Doc[],
   lowerBound: number,
   upperBound: number
@@ -166,9 +234,9 @@ function printStatementList(
 
 export function makeRubyPlugin(parse: (src: string) => PrismParseResult): Plugin {
   const printer = {
-    print(path: any, _options: any, print: any): Doc {
-      const node: AnyNode = path.node ?? path.getValue();
-      const state: RubyState = getState(path, _options);
+    print(path: NodePath, options: ParserOptions, print: PrintFn): Doc {
+      const node = path.node;
+      const state = getState(path, options);
       return printNode(path, print, node, state);
     },
   };
@@ -184,49 +252,51 @@ export function makeRubyPlugin(parse: (src: string) => PrismParseResult): Plugin
     ],
     parsers: {
       ruby: {
-        parse(text: string): AnyNode {
+        parse(text: string): RubyNode {
           const result = parse(text);
           const root = result.value;
           // Stash original source + comment ranges on the root so the printer can reach them
           // regardless of how Prettier threads options.
           const comments = (result.comments || [])
-            .map((c: any) => {
+            .map((c: PrismComment) => {
               const start = c.location.startOffset;
               const end = start + c.location.length;
               return { start, end, text: text.slice(start, end) };
             })
-            .sort((a: any, b: any) => a.start - b.start);
+            .sort((a, b) => a.start - b.start);
           root.__rubyState = { source: text, comments };
           return root;
         },
         astFormat: AST_FORMAT,
-        locStart: (n: AnyNode) => n.location.startOffset,
-        locEnd: (n: AnyNode) => n.location.startOffset + n.location.length,
+        locStart: (n: RubyNode) => n.location.startOffset,
+        locEnd: (n: RubyNode) => n.location.startOffset + n.location.length,
       },
     },
     printers: {
-      [AST_FORMAT]: printer as any,
+      [AST_FORMAT]: printer as unknown as Printer,
     },
   } as Plugin;
 }
 
 // Reach the per-format state: it lives on the AST root. Prettier also gives us the root via
 // options.originalText as a backstop.
-function getState(path: any, options: any): RubyState {
-  // Walk up to the root node which carries __rubyState.
-  const stack: AnyNode[] = path.stack ? path.stack.filter((x: any) => x && x.constructor) : [];
+function getState(path: NodePath, options: ParserOptions): RubyState {
+  // Walk up to the root node which carries __rubyState. `stack` is prettier-internal (not in the
+  // public AstPath type), so reach it via a cast.
+  const raw = (path as unknown as { stack?: unknown[] }).stack ?? [];
+  const stack = raw.filter((x): x is RubyNode => !!x && !!(x as RubyNode).constructor);
   for (const n of stack) {
-    if (n && n.__rubyState) return n.__rubyState as RubyState;
+    if (n.__rubyState) return n.__rubyState;
   }
-  const root = path.stack && path.stack[0];
-  if (root && root.__rubyState) return root.__rubyState as RubyState;
+  const root = stack[0];
+  if (root && root.__rubyState) return root.__rubyState;
   // Fallback: reconstruct minimal state from originalText (no comment info).
-  return { source: options?.originalText ?? "", comments: [] };
+  return { source: options.originalText ?? "", comments: [] };
 }
 
 // ---- Core dispatch ---------------------------------------------------------------------------
 
-function printNode(path: any, print: any, node: AnyNode, state: RubyState): Doc {
+function printNode(path: NodePath, print: PrintFn, node: RubyNode, state: RubyState): Doc {
   if (node == null) return "";
   const type = nodeType(node);
 
@@ -235,7 +305,7 @@ function printNode(path: any, print: any, node: AnyNode, state: RubyState): Doc 
       // Whole-file scope: harvest comments anywhere from start to EOF (e.g. a leading `# comment`
       // before the first statement, which sits outside the StatementsNode range).
       return path.call(
-        (p: any) => printStatements(p, print, state, 0, state.source.length),
+        (p: NodePath) => printStatements(p, print, state, 0, state.source.length),
         "statements"
       );
 
@@ -270,7 +340,7 @@ function printNode(path: any, print: any, node: AnyNode, state: RubyState): Doc 
       return printCase(path, print, node, state);
 
     case "ElseNode":
-      return path.call((p: any) => printStatements(p, print, state), "statements");
+      return path.call((p: NodePath) => printStatements(p, print, state), "statements");
 
     case "HashNode":
       return printHash(path, print, node, state);
@@ -319,16 +389,16 @@ function printNode(path: any, print: any, node: AnyNode, state: RubyState): Doc 
 // StatementsNode's own range; constructs with a header/footer (def, class, blocks, …) pass a wider
 // region so comments living in the header->body and body->`end` gaps are not lost.
 function printStatements(
-  path: any,
-  print: any,
+  path: NodePath,
+  print: PrintFn,
   state: RubyState,
   lowerBound?: number,
   upperBound?: number
 ): Doc {
-  const node: AnyNode = path.node ?? path.getValue();
-  const body: AnyNode[] = node.body || [];
+  const node = path.node;
+  const body: RubyNode[] = node.body || [];
   if (body.length === 0) return "";
-  const printed: Doc[] = path.map((p: any) => printOneStatement(p, print, state), "body");
+  const printed: Doc[] = path.map((p: NodePath) => printOneStatement(p, print, state), "body");
   const lo = lowerBound != null ? lowerBound : startOf(node);
   const hi = upperBound != null ? upperBound : endOf(node);
   return printStatementList(state, body, printed, lo, hi);
@@ -336,8 +406,8 @@ function printStatements(
 
 // A single statement. If the statement's own source range contains a comment, fall back to verbatim
 // source for that statement so comments inside it are never lost.
-function printOneStatement(path: any, print: any, state: RubyState): Doc {
-  const node: AnyNode = path.node ?? path.getValue();
+function printOneStatement(path: NodePath, print: PrintFn, state: RubyState): Doc {
+  const node = path.node;
   if (rangeHasComment(state, startOf(node), endOf(node))) {
     return sourceFallback(state, node);
   }
@@ -346,7 +416,7 @@ function printOneStatement(path: any, print: any, state: RubyState): Doc {
 
 // ---- def -------------------------------------------------------------------------------------
 
-function printDef(path: any, print: any, node: AnyNode, state: RubyState): Doc {
+function printDef(path: NodePath, print: PrintFn, node: RubyNode, state: RubyState): Doc {
   const parts: Doc[] = ["def "];
   if (node.receiver) {
     parts.push(locText(state, node.receiver.location), ".");
@@ -359,7 +429,7 @@ function printDef(path: any, print: any, node: AnyNode, state: RubyState): Doc {
     if (paramsDoc !== "") parts.push("(", paramsDoc, ")");
   }
 
-  const body = node.body;
+  const body = asNode(node.body);
   if (body && nodeType(body) === "StatementsNode" && (body.body || []).length > 0) {
     const bodyDoc = printBodyStatements(path, print, node, state, "body");
     return group([parts, indent([hardline, bodyDoc]), hardline, "end"]);
@@ -373,24 +443,24 @@ function printDef(path: any, print: any, node: AnyNode, state: RubyState): Doc {
 // construct's start (so a comment between the header and the first body line is kept) up to the
 // `end` keyword (so a trailing body comment before `end` is kept).
 function printBodyStatements(
-  path: any,
-  print: any,
-  node: AnyNode,
+  path: NodePath,
+  print: PrintFn,
+  node: RubyNode,
   state: RubyState,
   field: string
 ): Doc {
   const lower = startOf(node);
   const upper = node.endKeywordLoc ? node.endKeywordLoc.startOffset : endOf(node);
-  return path.call((p: any) => printStatements(p, print, state, lower, upper), field);
+  return path.call((p) => printStatements(p as unknown as NodePath, print, state, lower, upper), field as keyof RubyNode);
 }
 
 // Build the parameter list as a comma-joined string of pieces. Returns "" when empty.
-function printParameters(state: RubyState, params: AnyNode): Doc {
+function printParameters(state: RubyState, params: RubyNode): Doc {
   const pieces: string[] = [];
 
   for (const p of params.requireds || []) pieces.push(paramName(state, p));
   for (const p of params.optionals || []) {
-    pieces.push(`${p.name} = ${exprText(state, p.value)}`);
+    pieces.push(`${p.name} = ${state.source.slice(startOf(p.value), endOf(p.value))}`);
   }
   if (params.rest) {
     pieces.push(restText(state, params.rest, "*"));
@@ -399,7 +469,7 @@ function printParameters(state: RubyState, params: AnyNode): Doc {
   for (const p of params.keywords || []) {
     const kt = nodeType(p);
     if (kt === "OptionalKeywordParameterNode") {
-      pieces.push(`${p.name}: ${exprText(state, p.value)}`);
+      pieces.push(`${p.name}: ${state.source.slice(startOf(p.value), endOf(p.value))}`);
     } else {
       // RequiredKeywordParameterNode
       pieces.push(`${p.name}:`);
@@ -420,22 +490,22 @@ function printParameters(state: RubyState, params: AnyNode): Doc {
   return join(", ", pieces);
 }
 
-function paramName(state: RubyState, p: AnyNode): string {
+function paramName(state: RubyState, p: RubyNode): string {
   // RequiredParameterNode has `name`; multi-target/destructured params we slice from source.
   if (typeof p.name === "string") return p.name;
   return locText(state, p.location);
 }
 
-function restText(state: RubyState, p: AnyNode, sigil: string): string {
+function restText(state: RubyState, p: RubyNode, sigil: string): string {
   return p.name ? `${sigil}${p.name}` : sigil;
 }
 
 // ---- class / module --------------------------------------------------------------------------
 
 function printClass(
-  path: any,
-  print: any,
-  node: AnyNode,
+  path: NodePath,
+  print: PrintFn,
+  node: RubyNode,
   state: RubyState,
   keyword: string
 ): Doc {
@@ -447,15 +517,15 @@ function printClass(
   return wrapBody(path, print, node, state, head);
 }
 
-function printModule(path: any, print: any, node: AnyNode, state: RubyState): Doc {
+function printModule(path: NodePath, print: PrintFn, node: RubyNode, state: RubyState): Doc {
   const constPath = node.constantPath || node.constant_path;
   const head: Doc[] = ["module ", locText(state, constPath.location)];
   return wrapBody(path, print, node, state, head);
 }
 
 // Shared body wrapper for class/module: indent body statements, close with `end`.
-function wrapBody(path: any, print: any, node: AnyNode, state: RubyState, head: Doc[]): Doc {
-  const body = node.body;
+function wrapBody(path: NodePath, print: PrintFn, node: RubyNode, state: RubyState, head: Doc[]): Doc {
+  const body = asNode(node.body);
   if (body && nodeType(body) === "StatementsNode" && (body.body || []).length > 0) {
     const bodyDoc = printBodyStatements(path, print, node, state, "body");
     return group([head, indent([hardline, bodyDoc]), hardline, "end"]);
@@ -471,7 +541,7 @@ function wrapBody(path: any, print: any, node: AnyNode, state: RubyState, head: 
 
 // ---- calls -----------------------------------------------------------------------------------
 
-function printCall(path: any, print: any, node: AnyNode, state: RubyState): Doc {
+function printCall(path: NodePath, print: PrintFn, node: RubyNode, state: RubyState): Doc {
   // Operator-style and index calls (`a + b`, `a[b]`, `-a`, `!a`) are easiest and safest as source.
   if (isOperatorCall(node)) {
     return sourceFallback(state, node);
@@ -487,7 +557,7 @@ function printCall(path: any, print: any, node: AnyNode, state: RubyState): Doc 
   // Arguments.
   const args = node.arguments_;
   const hasParens = node.openingLoc != null; // `(` present in source
-  if (args && (args.arguments_ || []).length > 0) {
+  if (args && argList(args).length > 0) {
     const argDocs = argumentDocs(state, args);
     if (hasParens) {
       parts.push(group(["(", indent([softline, join([",", line], argDocs)]), softline, ")"]));
@@ -513,28 +583,28 @@ function printCall(path: any, print: any, node: AnyNode, state: RubyState): Doc 
 
 // Treat as operator/index/unary call when the method name isn't a normal identifier, or when it's
 // a receiver call with no `.`/`&.` operator (i.e. infix/prefix operator).
-function isOperatorCall(node: AnyNode): boolean {
+function isOperatorCall(node: RubyNode): boolean {
   const name: string = node.name || "";
   if (/^[A-Za-z_][A-Za-z0-9_]*[!?=]?$/.test(name)) return false;
   return true;
 }
 
-function argumentDocs(state: RubyState, args: AnyNode): Doc[] {
-  return (args.arguments_ || []).map((a: AnyNode) => exprDoc(state, a));
+function argumentDocs(state: RubyState, args: RubyNode): Doc[] {
+  return argList(args).map((a: RubyNode) => exprDoc(state, a));
 }
 
 // Returns the block doc, or null when the block carries comments (the caller then source-falls-back
 // the whole call so they are preserved verbatim).
-function printBlock(path: any, print: any, block: AnyNode, state: RubyState): Doc | null {
+function printBlock(path: NodePath, print: PrintFn, block: RubyNode, state: RubyState): Doc | null {
   if (rangeHasComment(state, startOf(block), endOf(block))) return null;
   const isBrace = locText(state, block.openingLoc) === "{";
   const paramsDoc = blockParamsDoc(state, block);
-  const body = block.body;
+  const body = asNode(block.body);
   const hasBody = body && nodeType(body) === "StatementsNode" && (body.body || []).length > 0;
 
   // `path` is positioned at the CallNode; descend into block -> body for the full printer.
   const printBody = (): Doc =>
-    path.call((p: any) => printStatements(p, print, state), "block", "body");
+    path.call((p) => printStatements(p as unknown as NodePath, print, state), "block", "body");
 
   if (isBrace) {
     // ` { |a| body }` on one line; group lets it break to do/end-like layout if needed.
@@ -552,7 +622,7 @@ function printBlock(path: any, print: any, block: AnyNode, state: RubyState): Do
   return [...head, indent([hardline, printBody()]), hardline, "end"];
 }
 
-function blockParamsDoc(state: RubyState, block: AnyNode): Doc | null {
+function blockParamsDoc(state: RubyState, block: RubyNode): Doc | null {
   const bp = block.parameters;
   if (!bp) return null;
   if (nodeType(bp) === "NumberedParametersNode") return null; // implicit `_1` etc.
@@ -566,7 +636,7 @@ function blockParamsDoc(state: RubyState, block: AnyNode): Doc | null {
 
 // ---- control flow ----------------------------------------------------------------------------
 
-function printIf(path: any, print: any, node: AnyNode, state: RubyState, keyword: string): Doc {
+function printIf(path: NodePath, print: PrintFn, node: RubyNode, state: RubyState, keyword: string): Doc {
   // Ternary `a ? b : c` is an IfNode with no `if` keyword in source.
   if (node.ifKeywordLoc == null && node.endKeywordLoc == null) {
     return sourceFallback(state, node);
@@ -583,7 +653,7 @@ function printIf(path: any, print: any, node: AnyNode, state: RubyState, keyword
   return printConditionalBody(path, print, node, state, head);
 }
 
-function printUnless(path: any, print: any, node: AnyNode, state: RubyState): Doc {
+function printUnless(path: NodePath, print: PrintFn, node: RubyNode, state: RubyState): Doc {
   if (node.endKeywordLoc == null) return sourceFallback(state, node);
   if (rangeHasComment(state, startOf(node), endOf(node))) return sourceFallback(state, node);
   const predicate = exprText(state, node.predicate);
@@ -605,9 +675,9 @@ function printUnless(path: any, print: any, node: AnyNode, state: RubyState): Do
 
 // Handle if/elsif/else chain via `subsequent` (ElseNode or nested IfNode for elsif).
 function printConditionalBody(
-  path: any,
-  print: any,
-  node: AnyNode,
+  path: NodePath,
+  print: PrintFn,
+  node: RubyNode,
   state: RubyState,
   head: Doc[]
 ): Doc {
@@ -636,40 +706,41 @@ function printConditionalBody(
 
 // Continue an elsif chain. `path` is still at the outer node; we descend into the named field.
 function printChainContinuation(
-  path: any,
-  print: any,
-  sub: AnyNode,
+  path: NodePath,
+  print: PrintFn,
+  sub: RubyNode,
   state: RubyState,
   field: string
 ): Doc {
   // Build the inner pieces (then-body + further subsequent) without re-emitting `elsif <pred>`.
   return path.call(
-    (p: any) => {
+    (p) => {
+      const np = p as unknown as NodePath;
       const innerParts: Doc[] = [];
-      const thenDoc = printOptionalStatements(p, print, sub, state, "statements");
+      const thenDoc = printOptionalStatements(np, print, sub, state, "statements");
       if (thenDoc !== "") innerParts.push(indent([hardline, thenDoc]));
       const sub2 = sub.subsequent;
       if (sub2) {
         const t = nodeType(sub2);
         if (t === "IfNode") {
           innerParts.push(hardline, "elsif ", exprText(state, sub2.predicate));
-          innerParts.push(printChainContinuation(p, print, sub2, state, "subsequent"));
+          innerParts.push(printChainContinuation(np, print, sub2, state, "subsequent"));
         } else if (t === "ElseNode") {
           innerParts.push(hardline, "else");
-          const elseBody = printElseClause(p, print, sub2, state, "subsequent");
+          const elseBody = printElseClause(np, print, sub2, state, "subsequent");
           if (elseBody !== "") innerParts.push(indent([hardline, elseBody]));
         }
       }
       return innerParts;
     },
-    field
+    field as keyof RubyNode
   );
 }
 
 function printElseClause(
-  path: any,
-  print: any,
-  elseNode: AnyNode,
+  path: NodePath,
+  print: PrintFn,
+  elseNode: RubyNode,
   state: RubyState,
   field: string
 ): Doc {
@@ -679,15 +750,15 @@ function printElseClause(
     return sourceFallback(state, stmts);
   }
   return path.call(
-    (p: any) => p.call((q: any) => printStatements(q, print, state), "statements"),
-    field
+    (p) => (p as unknown as NodePath).call((q: NodePath) => printStatements(q, print, state), "statements"),
+    field as keyof RubyNode
   );
 }
 
 function printWhileUntil(
-  path: any,
-  print: any,
-  node: AnyNode,
+  path: NodePath,
+  print: PrintFn,
+  node: RubyNode,
   state: RubyState,
   keyword: string
 ): Doc {
@@ -706,19 +777,19 @@ function printWhileUntil(
   return group(parts);
 }
 
-function printCase(path: any, print: any, node: AnyNode, state: RubyState): Doc {
+function printCase(path: NodePath, print: PrintFn, node: RubyNode, state: RubyState): Doc {
   if (rangeHasComment(state, startOf(node), endOf(node))) return sourceFallback(state, node);
   const parts: Doc[] = ["case"];
   if (node.predicate) parts.push(" ", exprText(state, node.predicate));
 
-  const conditions: AnyNode[] = node.conditions || [];
+  const conditions: RubyNode[] = node.conditions || [];
   for (let i = 0; i < conditions.length; i++) {
     const when = conditions[i];
     if (nodeType(when) !== "WhenNode") {
       // `in` pattern matching etc. — slice whole case for safety.
       return sourceFallback(state, node);
     }
-    const condTexts = (when.conditions || []).map((c: AnyNode) => exprText(state, c));
+    const condTexts = (when.conditions || []).map((c: RubyNode) => exprText(state, c));
     parts.push(hardline, "when ", join(", ", condTexts));
     const stmts = when.statements;
     if (stmts && (stmts.body || []).length > 0) {
@@ -743,8 +814,8 @@ function printCase(path: any, print: any, node: AnyNode, state: RubyState): Doc 
 // Print a StatementsNode without a Prettier path — used where descending the path is awkward.
 // Each statement is printed via its own structural printer using a detached mini-walk; to keep it
 // safe and simple we slice source for the whole statements block whenever it is multi-line-tricky.
-function printStatementsOf(stmts: AnyNode, state: RubyState): Doc {
-  const body: AnyNode[] = stmts.body || [];
+function printStatementsOf(stmts: RubyNode, state: RubyState): Doc {
+  const body: RubyNode[] = stmts.body || [];
   const parts: Doc[] = [];
   for (let i = 0; i < body.length; i++) {
     if (i > 0) {
@@ -757,32 +828,32 @@ function printStatementsOf(stmts: AnyNode, state: RubyState): Doc {
 }
 
 function printOptionalStatements(
-  path: any,
-  print: any,
-  node: AnyNode,
+  path: NodePath,
+  print: PrintFn,
+  node: RubyNode,
   state: RubyState,
   field: string
 ): Doc {
-  const stmts = node[field];
+  const stmts = (node as unknown as Record<string, RubyNode | undefined>)[field];
   if (!stmts || (stmts.body || []).length === 0) return "";
   if (rangeHasComment(state, startOf(stmts), endOf(stmts))) {
     return sourceFallback(state, stmts);
   }
-  return path.call((p: any) => printStatements(p, print, state), field);
+  return path.call((p) => printStatements(p as unknown as NodePath, print, state), field as keyof RubyNode);
 }
 
 // ---- literals & containers -------------------------------------------------------------------
 
-function printHash(path: any, print: any, node: AnyNode, state: RubyState): Doc {
-  const elements: AnyNode[] = node.elements || [];
+function printHash(path: NodePath | null, print: PrintFn | null, node: RubyNode, state: RubyState): Doc {
+  const elements: RubyNode[] = node.elements || [];
   if (elements.length === 0) return "{}";
   if (rangeHasComment(state, startOf(node), endOf(node))) return sourceFallback(state, node);
   const items = elements.map((el) => assocDoc(state, el));
   return group(["{", indent([line, join([",", line], items)]), line, "}"]);
 }
 
-function printArray(path: any, print: any, node: AnyNode, state: RubyState): Doc {
-  const elements: AnyNode[] = node.elements || [];
+function printArray(path: NodePath | null, print: PrintFn | null, node: RubyNode, state: RubyState): Doc {
+  const elements: RubyNode[] = node.elements || [];
   // %w[], %i[] and similar use non-`[` openings — slice to preserve.
   if (node.openingLoc && locText(state, node.openingLoc) !== "[") {
     return sourceFallback(state, node);
@@ -793,12 +864,12 @@ function printArray(path: any, print: any, node: AnyNode, state: RubyState): Doc
   return group(["[", indent([softline, join([",", line], items)]), softline, "]"]);
 }
 
-function printAssoc(path: any, print: any, node: AnyNode, state: RubyState): Doc {
+function printAssoc(path: NodePath, print: PrintFn, node: RubyNode, state: RubyState): Doc {
   return assocDoc(state, node);
 }
 
 // `key: value` (label, operatorLoc null) or `key => value`.
-function assocDoc(state: RubyState, assoc: AnyNode): Doc {
+function assocDoc(state: RubyState, assoc: RubyNode): Doc {
   if (nodeType(assoc) !== "AssocNode") {
     // AssocSplatNode (`**h`) etc. — slice.
     return verbatim(state.source.slice(startOf(assoc), endOf(assoc)));
@@ -816,7 +887,7 @@ function assocDoc(state: RubyState, assoc: AnyNode): Doc {
   return [exprText(state, assoc.key), " => ", exprText(state, assoc.value)];
 }
 
-function labelKeyText(state: RubyState, key: AnyNode): string {
+function labelKeyText(state: RubyState, key: RubyNode): string {
   if (nodeType(key) === "SymbolNode") {
     const v = symbolText(key);
     return `${v}:`;
@@ -826,7 +897,7 @@ function labelKeyText(state: RubyState, key: AnyNode): string {
   return raw.endsWith(":") ? raw : `${raw}:`;
 }
 
-function symbolText(sym: AnyNode): string {
+function symbolText(sym: RubyNode): string {
   const u = sym.unescaped;
   if (typeof u === "string") return u;
   if (u && typeof u.value === "string") return u.value;
@@ -836,35 +907,35 @@ function symbolText(sym: AnyNode): string {
 // ---- keyword statements ----------------------------------------------------------------------
 
 function printKeywordWithArgs(
-  path: any,
-  print: any,
-  node: AnyNode,
+  path: NodePath,
+  print: PrintFn,
+  node: RubyNode,
   state: RubyState,
   keyword: string
 ): Doc {
   const args = node.arguments_;
-  if (!args || (args.arguments_ || []).length === 0) return keyword;
-  const argDocs = (args.arguments_ || []).map((a: AnyNode) => exprText(state, a));
+  if (!args || argList(args).length === 0) return keyword;
+  const argDocs = argList(args).map((a: RubyNode) => exprText(state, a));
   return [keyword, " ", join(", ", argDocs)];
 }
 
-function printYield(path: any, print: any, node: AnyNode, state: RubyState): Doc {
+function printYield(path: NodePath, print: PrintFn, node: RubyNode, state: RubyState): Doc {
   const args = node.arguments_;
-  if (!args || (args.arguments_ || []).length === 0) return "yield";
-  const argDocs = (args.arguments_ || []).map((a: AnyNode) => exprText(state, a));
+  if (!args || argList(args).length === 0) return "yield";
+  const argDocs = argList(args).map((a: RubyNode) => exprText(state, a));
   const hasParens = node.lparenLoc != null;
   if (hasParens) return ["yield(", join(", ", argDocs), ")"];
   return ["yield ", join(", ", argDocs)];
 }
 
-function printBinary(path: any, print: any, node: AnyNode, state: RubyState): Doc {
+function printBinary(path: NodePath, print: PrintFn, node: RubyNode, state: RubyState): Doc {
   const op = locText(state, node.operatorLoc) || (nodeType(node) === "AndNode" ? "&&" : "||");
   return [exprText(state, node.left), " ", op, " ", exprText(state, node.right)];
 }
 
 // `target = value` for local/instance/class/global/constant writes. The target and `=` come from
 // source (exact), the value via exprDoc so a nested hash/array literal gets reformatted.
-function printWrite(node: AnyNode, state: RubyState): Doc {
+function printWrite(node: RubyNode, state: RubyState): Doc {
   if (rangeHasComment(state, startOf(node), endOf(node))) return sourceFallback(state, node);
   const target = locText(state, node.nameLoc) || String(node.name);
   return [target, " = ", exprDoc(state, node.value)];
@@ -875,14 +946,14 @@ function printWrite(node: AnyNode, state: RubyState): Doc {
 // For nested expressions we prefer source slices: they are always valid, and reformatting deep
 // expression trees risks changing semantics. The structural printers above handle the layouts that
 // matter (blocks, bodies, containers); leaf/inline expressions are sliced verbatim.
-function exprText(state: RubyState, node: AnyNode): Doc {
+function exprText(state: RubyState, node: RubyNode): Doc {
   if (node == null) return "";
   return verbatim(state.source.slice(startOf(node), endOf(node)));
 }
 
 // Like exprText but reformats containers/structural nodes when worthwhile (used for array/hash
 // elements and call arguments so nested hashes/arrays still get grouped layout).
-function exprDoc(state: RubyState, node: AnyNode): Doc {
+function exprDoc(state: RubyState, node: RubyNode): Doc {
   if (node == null) return "";
   const type = nodeType(node);
   if (type === "HashNode") return printHash(null, null, node, state);
