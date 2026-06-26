@@ -51,7 +51,7 @@ export const searchVault: ToolHandler = async (args, ctx) => {
       : DEFAULT_LIMIT;
 
   if (query.trim().length === 0) return ok({ query, results: [], truncated: false });
-  const search = prepareSimpleSearch(query) as Scorer;
+  const search = prepareSimpleSearch(query);
 
   const files = app.vault.getMarkdownFiles();
   const best = new Map<string, Scored>();
