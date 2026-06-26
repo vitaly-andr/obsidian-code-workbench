@@ -4,6 +4,13 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [3.2.3] - 2026-06-26
+
+### Changed
+- Internal type-safety cleanup. Replaced the remaining `any` and resolved the unsafe-value and
+  string-coercion findings the plugin-review tooling flagged across the formatters, vault tools, git
+  graph, and the websocket layer. No behaviour change; purely typing.
+
 ## [3.2.2] - 2026-06-26
 
 ### Fixed
