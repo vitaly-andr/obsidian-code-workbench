@@ -69,7 +69,7 @@ export class RubyFormatter {
       wasi_snapshot_preview1: (wasi as unknown as { wasiImport: WebAssembly.ModuleImports }).wasiImport,
     });
     (wasi as unknown as { initialize(i: WebAssembly.Instance): void }).initialize(instance);
-    this.parseFn = (src: string) => parsePrism(instance.exports as any, src, {}) as PrismParseResult;
+    this.parseFn = (src: string) => parsePrism(instance.exports, src, {}) as PrismParseResult;
     return true;
   }
 

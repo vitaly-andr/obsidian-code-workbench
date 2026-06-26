@@ -5,7 +5,9 @@
 // Prettier is bundled into main.js but loaded lazily on the first format, and only the plugins the
 // current file's parser needs (formatting a .json never pulls the TypeScript or HTML plugin). Nothing
 // here runs on the plugin's onload path.
-const pick = (m: any): any => (m && m.default) || m;
+import type { Plugin } from "prettier";
+
+const pick = (m: unknown): Plugin => ((m as { default?: Plugin } | null)?.default || (m as Plugin));
 
 // File extension -> Prettier parser. (JSON parsers live in the babel plugin; estree is the printer.)
 // The xml community plugin adds XML; everything else Prettier doesn't cover is handled by a wasm
@@ -36,7 +38,7 @@ const loadPrettier = () => (stdPromise ??= import("prettier/standalone"));
 // JS/CSS, so it also needs babel/estree/postcss. jinja2 is the only bundled template formatter (zero
 // extra deps); twig/pug/gherkin/blade/liquid pull large parsers and are deferred to the future
 // external-formatter layer.
-async function pluginsFor(parser: string): Promise<any[]> {
+async function pluginsFor(parser: string): Promise<Plugin[]> {
   switch (parser) {
     case "babel":
     case "json":

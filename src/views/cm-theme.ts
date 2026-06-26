@@ -6,7 +6,7 @@
 // active Obsidian theme. CM6 core/Lezer stay external (R2); only the language packs are bundled.
 import { Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
+import { HighlightStyle, StreamLanguage, type StreamParser, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 
 import { javascript } from "@codemirror/lang-javascript";
@@ -43,7 +43,7 @@ import { clojure } from "@codemirror/legacy-modes/mode/clojure";
 import { diff } from "@codemirror/legacy-modes/mode/diff";
 import { c, csharp, kotlin, scala, dart, objectiveC } from "@codemirror/legacy-modes/mode/clike";
 
-const legacy = (mode: any): Extension => StreamLanguage.define(mode);
+const legacy = (mode: StreamParser<unknown>): Extension => StreamLanguage.define(mode);
 
 export function languageExtension(ext: string): Extension | null {
   switch (ext) {
