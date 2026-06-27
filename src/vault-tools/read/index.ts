@@ -9,6 +9,7 @@ import { getDailyNote } from "./get-daily-note";
 import { getFrontmatter } from "./get-frontmatter";
 import { getOutgoingLinks } from "./get-outgoing-links";
 import { listFilesInFolder } from "./list-files-in-folder";
+import { openNote } from "./open-note";
 import { resolveWikilink } from "./resolve-wikilink";
 import { searchVault } from "./search-vault";
 
@@ -16,6 +17,7 @@ const pathArg = objectSchema({ path: { type: "string" } }, ["path"]);
 
 // The 8 read tools (contracts/tools.md). Descriptions are written to persuade the model to use them
 // instead of grepping. Registered additively so this group never shares a file with the write group.
+// `openNote` is a 9th entry here: a non-mutating UI action (open a note in the editor), approval-free.
 const READ_TOOLS: RegisteredTool[] = [
   {
     descriptor: {
@@ -91,6 +93,15 @@ const READ_TOOLS: RegisteredTool[] = [
       inputSchema: objectSchema({ date: { type: "string" } }),
     },
     handler: getDailyNote,
+  },
+  {
+    descriptor: {
+      name: "openNote",
+      description:
+        "Open a note in the Obsidian editor and bring it to the foreground (non-destructive — only changes which note is focused). Pass newLeaf:true to open it in a new tab. Use when the user asks to open, show, or go to a note.",
+      inputSchema: objectSchema({ path: { type: "string" }, newLeaf: { type: "boolean" } }, ["path"]),
+    },
+    handler: openNote,
   },
 ];
 

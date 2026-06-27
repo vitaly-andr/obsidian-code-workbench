@@ -95,7 +95,7 @@ describe("companion MCP transport (T012)", () => {
     expect(result.protocolVersion).toBe("2025-11-25");
   });
 
-  it("lists all 13 vault tools", async () => {
+  it("lists all 14 vault tools", async () => {
     const { sessionId } = await initialize();
     const reply = await post(
       port,
@@ -104,9 +104,10 @@ describe("companion MCP transport (T012)", () => {
     );
     const result = (reply.body as { result: any }).result;
     const names = result.tools.map((t: { name: string }) => t.name);
-    expect(result.tools.length).toBe(13);
+    expect(result.tools.length).toBe(14);
     expect(names).toContain("getBacklinks");
     expect(names).toContain("renameNote");
+    expect(names).toContain("openNote");
     // nextCursor must be a string or omitted — never null (the MCP client rejects null on its schema).
     expect(result.nextCursor ?? undefined).toBeUndefined();
   });
