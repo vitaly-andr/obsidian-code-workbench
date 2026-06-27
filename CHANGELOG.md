@@ -4,6 +4,13 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [3.3.0] - 2026-06-27
+
+### Added
+- `openNote` vault tool. The companion MCP server can now open a note in the editor and bring it to
+  the foreground; pass `newLeaf: true` to open it in a new tab. It only changes which note is focused
+  and never writes to the vault, so it needs no approval.
+
 ## [3.2.4] - 2026-06-26
 
 ### Changed
