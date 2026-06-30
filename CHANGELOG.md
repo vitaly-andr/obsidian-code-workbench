@@ -4,6 +4,12 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [3.3.2] - 2026-06-30
+
+### Changed
+- Diagnostic and hover tooltips are now styled through CodeMirror's theme instead of `!important` CSS,
+  and are parented to the editor's own window so they render correctly in popped-out windows.
+
 ## [3.3.1] - 2026-06-30
 
 ### Fixed

@@ -112,11 +112,12 @@ export class CodeView extends TextFileView implements SelectionProvider {
       keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
       obsidianEditorTheme,
       obsidianHighlighting,
-      // Render hover/lint/LSP tooltips into document.body. Obsidian puts `contain: strict` on every
-      // workspace-leaf; that makes the leaf a containing block and clips paint, so a tooltip rendered
-      // inside the editor is positioned against (and cut off at) the leaf, landing at the top instead
-      // of by the cursor. Re-parenting to body escapes the containment so CM6 positions it correctly.
-      tooltips({ parent: document.body }),
+      // Render hover/lint/LSP tooltips into the editor window's body. Obsidian puts `contain: strict`
+      // on every workspace-leaf; that makes the leaf a containing block and clips paint, so a tooltip
+      // rendered inside the editor is positioned against (and cut off at) the leaf, landing at the top
+      // instead of by the cursor. Re-parenting to the body escapes the containment so CM6 positions it
+      // correctly. Use the contentEl's own document so it still works in a popped-out window.
+      tooltips({ parent: this.contentEl.ownerDocument.body }),
       EditorView.lineWrapping,
       // Editable; persist edits through Obsidian's save, and re-blame once the edits settle.
       EditorView.updateListener.of((u) => {

@@ -127,6 +127,25 @@ export const obsidianEditorTheme = EditorView.theme({
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
     backgroundColor: "var(--text-selection)",
   },
+  // Diagnostic (lint) + hover/LSP tooltips. CodeMirror's view and lint baseThemes give them a light
+  // default surface (white-on-white in dark Obsidian themes). Styling them through the theme — rather
+  // than styles.css — lets CodeMirror's own specificity win over the baseTheme without `!important`,
+  // and the generated theme class rides along on the tooltip container even when it is re-parented to
+  // the window body, so these rules still reach it.
+  ".cm-tooltip.cm-tooltip-hover, .cm-tooltip.cm-tooltip-lint": {
+    backgroundColor: "var(--background-secondary)",
+    color: "var(--text-normal)",
+    border: "1px solid var(--background-modifier-border)",
+    borderRadius: "var(--radius-s)",
+  },
+  ".cm-tooltip-hover .cm-tooltip-arrow:before, .cm-tooltip-hover .cm-tooltip-arrow:after": {
+    borderTopColor: "var(--background-secondary)",
+    borderBottomColor: "var(--background-secondary)",
+  },
+  // Drop the diagnostic's own padding so the message sits flush with the left severity strip.
+  ".cm-tooltip-lint .cm-diagnostic": {
+    padding: "0",
+  },
 });
 
 // File extensions routed to CodeView (markdown stays with Obsidian).
