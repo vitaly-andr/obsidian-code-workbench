@@ -244,6 +244,32 @@
 .cm-ts-punctuation { color: var(--code-punctuation); }
 .cm-ts-variable { color: var(--code-normal, var(--text-normal)); }
 
+/* Diagnostic (lint) tooltip — from the tree-sitter syntax linter and (when enabled) the LSP layer.
+   Per @codemirror/lint's baseTheme, `.cm-tooltip-lint` and `.cm-diagnostic` set NO background/colour of
+   their own; the surface comes from @codemirror/view's `.cm-tooltip` base theme, which is injected with
+   high specificity and leaks a light background (white-on-white) in dark Obsidian themes. Override with
+   `!important` so theme variables win. */
+/* The lint diagnostic renders inside a `.cm-tooltip.cm-tooltip-hover` wrapper whose background is
+   CodeMirror's #f5f5f5 default (Obsidian does not restyle hover tooltips), giving white-on-white in dark
+   themes. Style the OUTER hover wrapper, not just `.cm-tooltip-lint`. Covers the LSP hover tooltip too. */
+.cm-tooltip.cm-tooltip-hover,
+.cm-tooltip.cm-tooltip-lint {
+  background-color: var(--background-secondary) !important;
+  color: var(--text-normal) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: var(--radius-s);
+}
+.cm-tooltip-hover .cm-tooltip-arrow::before,
+.cm-tooltip-hover .cm-tooltip-arrow::after {
+  border-top-color: var(--background-secondary) !important;
+  border-bottom-color: var(--background-secondary) !important;
+}
+/* Drop the lint diagnostic's own padding so the message sits flush with the bottom of the
+   left severity strip (the `border-left`), instead of floating above it. */
+.cm-tooltip-lint .cm-diagnostic {
+  padding: 0 !important;
+}
+
 /* Settings tab: promo layout + the language-coverage table. */
 .cw-settings h3 {
   margin: 1.4em 0 0.4em;

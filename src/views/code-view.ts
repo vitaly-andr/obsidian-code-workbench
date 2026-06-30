@@ -3,7 +3,7 @@
 
 import { TextFileView, WorkspaceLeaf } from "obsidian";
 import { Compartment, EditorState, Extension } from "@codemirror/state";
-import { EditorView, highlightActiveLine, keymap, lineNumbers } from "@codemirror/view";
+import { EditorView, highlightActiveLine, keymap, lineNumbers, tooltips } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { SelectionPayload } from "../context";
 import { SelectionProvider } from "../tools/selection";
@@ -112,6 +112,11 @@ export class CodeView extends TextFileView implements SelectionProvider {
       keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
       obsidianEditorTheme,
       obsidianHighlighting,
+      // Render hover/lint/LSP tooltips into document.body. Obsidian puts `contain: strict` on every
+      // workspace-leaf; that makes the leaf a containing block and clips paint, so a tooltip rendered
+      // inside the editor is positioned against (and cut off at) the leaf, landing at the top instead
+      // of by the cursor. Re-parenting to body escapes the containment so CM6 positions it correctly.
+      tooltips({ parent: document.body }),
       EditorView.lineWrapping,
       // Editable; persist edits through Obsidian's save, and re-blame once the edits settle.
       EditorView.updateListener.of((u) => {

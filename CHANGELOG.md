@@ -4,6 +4,15 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [3.3.1] - 2026-06-30
+
+### Fixed
+- Editor diagnostic and hover tooltips are readable in dark themes. They previously rendered on
+  CodeMirror's light default background, which left white-on-white text.
+- Diagnostic and hover tooltips now open next to the relevant line instead of at the top of the
+  editor. Obsidian sets `contain: strict` on each workspace pane, which was clipping the tooltip;
+  it is now rendered against the window so CodeMirror positions it correctly.
+
 ## [3.3.0] - 2026-06-27
 
 ### Added
