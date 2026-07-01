@@ -1,0 +1,53 @@
+{
+  "_comment": "Golden fixture for the getDiagnostics agent format (FR-026 / SC-008). Each case feeds one LSP Diagnostic for a vault-relative path and asserts the rendered GCC/Clang line `<path>:<line>:<col>: <severity>: <message>`. This is OUR documented format (the GCC/Clang convention) per contracts/getdiagnostics-parity.md — not any editor's private rendering, so nothing is captured/guessed. LSP positions are 0-based; rendered line/col are 1-based UTF-16 units.",
+  "cases": [
+    {
+      "name": "error",
+      "path": "src/foo.rb",
+      "diagnostic": { "range": { "start": { "line": 11, "character": 4 } }, "severity": 1, "message": "undefined method 'bar'" },
+      "expected": "src/foo.rb:12:5: error: undefined method 'bar'"
+    },
+    {
+      "name": "warning at file start",
+      "path": "lib/util.py",
+      "diagnostic": { "range": { "start": { "line": 0, "character": 0 } }, "severity": 2, "message": "imported but unused" },
+      "expected": "lib/util.py:1:1: warning: imported but unused"
+    },
+    {
+      "name": "information renders as info",
+      "path": "app.ts",
+      "diagnostic": { "range": { "start": { "line": 4, "character": 9 } }, "severity": 3, "message": "prefer const" },
+      "expected": "app.ts:5:10: info: prefer const"
+    },
+    {
+      "name": "hint",
+      "path": "main.go",
+      "diagnostic": { "range": { "start": { "line": 2, "character": 2 } }, "severity": 4, "message": "exported function should have comment" },
+      "expected": "main.go:3:3: hint: exported function should have comment"
+    },
+    {
+      "name": "missing severity defaults to error",
+      "path": "x.rb",
+      "diagnostic": { "range": { "start": { "line": 0, "character": 0 } }, "message": "syntax error" },
+      "expected": "x.rb:1:1: error: syntax error"
+    },
+    {
+      "name": "multi-line message collapsed to one line",
+      "path": "y.rb",
+      "diagnostic": { "range": { "start": { "line": 6, "character": 0 } }, "severity": 1, "message": "type mismatch:\n  expected Integer\n  got String" },
+      "expected": "y.rb:7:1: error: type mismatch: expected Integer got String"
+    },
+    {
+      "name": "column after multibyte (Cyrillic) text is UTF-16 1-based (SC-007)",
+      "path": "models/строка.rb",
+      "diagnostic": { "range": { "start": { "line": 3, "character": 9 } }, "severity": 2, "message": "shadowing outer variable" },
+      "expected": "models/строка.rb:4:10: warning: shadowing outer variable"
+    },
+    {
+      "name": "column after emoji (surrogate pair counts as 2 units)",
+      "path": "s.rb",
+      "diagnostic": { "range": { "start": { "line": 0, "character": 7 } }, "severity": 1, "message": "unterminated string" },
+      "expected": "s.rb:1:8: error: unterminated string"
+    }
+  ]
+}

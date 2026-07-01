@@ -25,6 +25,12 @@ const LICENSE_BANNER = `/*
 // singleton CodeMirror 6 / Lezer instances through a require() overload; a second
 // bundled copy of @codemirror/state or /view breaks extension registration.
 // We bundle only what Obsidian does not provide (ws, @codemirror/merge, lang-*).
+//
+// 005-editor-lsp: @codemirror/lsp-client is bundled (Obsidian does not ship it), but its
+// CM6 peers (autocomplete/view/state/language/lint/commands) and @lezer/highlight MUST stay
+// external host singletons below — otherwise the client would register extensions against a
+// second CodeMirror instance ("second CodeMirror" symptom the T005 spike guards against).
+// The client is reached only through a lazy import() of src/lsp/, so it loads when LSP is on.
 const external = [
   "obsidian",
   // Obsidian bundles moment and hands it back through require("obsidian"); never bundle a second copy.

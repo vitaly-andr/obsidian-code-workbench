@@ -4,6 +4,25 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.0.0] - 2026-07-01
+
+### Added
+- Editor language intelligence via LSP (opt-in, off by default, desktop only). With it on, the code
+  editor connects to a language server you already have installed — it never installs one — and adds
+  inline diagnostics, autocomplete, hover documentation, signature help, go-to-definition, and
+  find-references on top of highlighting. Diagnostics work with both push and pull servers, so
+  pull-only servers such as ruby-lsp are covered, and the same diagnostics reach Claude through the
+  IDE `getDiagnostics` tool for an edit → verify → fix loop. Everything loads lazily, so the base
+  plugin and startup are unchanged while it is off.
+- A "Detected language servers" list in settings. When the feature is on, settings scans your
+  environment for installed servers and lists each language you can connect to and where its server
+  was found, each with an on/off switch. Rescan picks up a newly installed server without a restart,
+  and "show all / not installed" lists the remaining supported languages with install hints.
+
+### Fixed
+- Turning "Enable syntax highlighting" on or off now applies to already-open code files immediately,
+  instead of only the next time a file is opened.
+
 ## [3.3.2] - 2026-06-30
 
 ### Changed

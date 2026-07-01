@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
-import { TextFileView, WorkspaceLeaf } from "obsidian";
+import { TextFileView, WorkspaceLeaf, setIcon } from "obsidian";
 import { Compartment, EditorState, Extension } from "@codemirror/state";
 import { EditorView, highlightActiveLine, keymap, lineNumbers, tooltips } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { forceLinting } from "@codemirror/lint";
 import { SelectionPayload } from "../context";
 import { SelectionProvider } from "../tools/selection";
 import { showEditorContextMenu } from "./editor-context-menu";
@@ -38,10 +39,38 @@ export interface BlameConfig {
   enabled: () => boolean;
 }
 
+// Connection status reported by the LSP layer for the editor indicator (FR-013).
+export interface LspStatus {
+  state: "starting" | "ready" | "restarting" | "failed" | "disposed" | "no-server" | "disabled" | "attached-elsewhere";
+  origin: "user" | "project-local" | "version-manager" | "path" | null;
+}
+
+// Optional editor-LSP wiring (005-editor-lsp). `enabled` is a cheap gate (master + per-language) read
+// BEFORE any LSP code loads, so a disabled feature never imports the runtime (SC-003). `attach` lazily
+// loads the module, discovers/connects a server for the file, and returns the CM extension to drop
+// into the LSP compartment — or null to stay highlighting-only (no server found / disabled).
+export interface LspEditorConfig {
+  enabled: (language: string) => boolean;
+  attach: (input: {
+    filePath: string;
+    language: string;
+    owner: object;
+    onStatus: (status: LspStatus) => void;
+  }) => Promise<Extension | null>;
+  // Drop any file URI this view claimed, so another view may drive the LSP plugin for it.
+  release?: (owner: object) => void;
+}
+
 export class CodeView extends TextFileView implements SelectionProvider {
   private editor: EditorView | null = null;
   // Swappable language layer: Lezer/legacy first, upgraded to tree-sitter once a grammar loads.
   private readonly langLayer = new Compartment();
+  // Opt-in LSP layer: empty until a server is discovered and connected for this file (005-editor-lsp).
+  private readonly lspLayer = new Compartment();
+  // Stable identity for this view, used by the LSP controller's single-view-per-file guard.
+  private readonly lspOwner = {};
+  // The view-header status indicator for the LSP connection (FR-013), created lazily on first attach.
+  private lspStatusEl: HTMLElement | null = null;
   // Debounce handle for re-blaming after edits.
   private blameTimer: number | null = null;
 
@@ -51,6 +80,7 @@ export class CodeView extends TextFileView implements SelectionProvider {
     private readonly formatService?: FormatService,
     private readonly blame?: BlameConfig,
     private readonly menuHost?: EditorMenuHost,
+    private readonly lsp?: LspEditorConfig,
   ) {
     super(leaf);
   }
@@ -68,6 +98,14 @@ export class CodeView extends TextFileView implements SelectionProvider {
     // Obsidian's editor-menu never fires for this non-TFile code editor, so build our own right-click
     // menu (same one as the hidden-file editor): edit actions plus share-selection and diff.
     this.registerDomEvent(this.contentEl, "contextmenu", (evt) => this.showContextMenu(evt));
+  }
+
+  async onClose(): Promise<void> {
+    // Release this view's LSP claim on close. clear()/renderEditor cover data clears and file switches,
+    // but a plain tab close goes through onClose — without this the single-view-per-file guard keeps the
+    // URI "owned" by this dead view, and reopening the file degrades to highlighting-only (attached-elsewhere).
+    this.lsp?.release?.(this.lspOwner);
+    await super.onClose();
   }
 
   private showContextMenu(evt: MouseEvent): void {
@@ -97,12 +135,21 @@ export class CodeView extends TextFileView implements SelectionProvider {
     }
     this.editor?.destroy();
     this.editor = null;
+    this.lsp?.release?.(this.lspOwner);
+    this.lspStatusEl?.remove();
+    this.lspStatusEl = null;
     this.contentEl.empty();
   }
 
   private renderEditor(data: string): void {
     this.editor?.destroy();
+    // On a file switch, drop the previous file's LSP claim so maybeAttachLsp can claim the new file
+    // (and another view can take over the old one).
+    this.lsp?.release?.(this.lspOwner);
     this.contentEl.empty();
+    // Drop any prior file's LSP status indicator; maybeAttachLsp recreates it for the new file.
+    this.lspStatusEl?.remove();
+    this.lspStatusEl = null;
     // Highlighting key (blade-aware); formatting still keys off the raw extension below.
     const ext = this.file ? grammarKeyForPath(this.file.path) : "";
     const extensions: Extension[] = [
@@ -131,6 +178,8 @@ export class CodeView extends TextFileView implements SelectionProvider {
       // Highlighting + diagnostics layer. Starts on the bundled Lezer/legacy grammar (instant), and
       // is swapped for tree-sitter once that grammar finishes downloading (maybeUpgradeToTreeSitter).
       this.langLayer.of(this.lezerLayer(ext)),
+      // Opt-in LSP layer: empty (a true no-op) until maybeAttachLsp connects a server for this file.
+      this.lspLayer.of([]),
     ];
 
     this.editor = new EditorView({
@@ -139,6 +188,76 @@ export class CodeView extends TextFileView implements SelectionProvider {
     });
     void this.maybeUpgradeToTreeSitter(ext, this.editor);
     void this.refreshBlame(this.editor);
+    void this.maybeAttachLsp(this.editor);
+  }
+
+  // When the LSP feature is enabled for this file's language, lazily load the module, discover and
+  // connect a server, and swap the LSP compartment to the server-backed extension set. Stays a no-op
+  // (highlighting only) when the feature is off, no server is found, or the language has no grammar
+  // id. The cheap `enabled` gate is checked first so a disabled feature never imports the runtime.
+  private async maybeAttachLsp(view: EditorView): Promise<void> {
+    if (!this.lsp || !this.file) return;
+    const language = grammarForExtension(grammarKeyForPath(this.file.path))?.id;
+    if (!language || !this.lsp.enabled(language)) return;
+    const filePath = absoluteForVaultPath(this.app, this.file.path);
+    if (!filePath) return;
+    const extension = await this.lsp.attach({
+      filePath,
+      language,
+      owner: this.lspOwner,
+      onStatus: (status) => {
+        this.showLspStatus(status);
+        // The pull-diagnostics linter ran once at mount, before the server finished connecting (it
+        // returns nothing until `diagnosticProvider` is known). Re-run it the moment the session is
+        // ready, so diagnostics appear without the user having to make an edit first.
+        // Cast: @codemirror/lint resolves a separate nested @codemirror/view type at compile time, but
+        // CM6 is the external host singleton at runtime (one EditorView), so this is sound.
+        if (status.state === "ready" && this.editor) {
+          forceLinting(this.editor as unknown as Parameters<typeof forceLinting>[0]);
+        }
+      },
+    });
+    if (!extension || this.editor !== view) return; // no server, or the file was switched meanwhile
+    view.dispatch({ effects: this.lspLayer.reconfigure(extension) });
+  }
+
+  // Re-evaluate the LSP layer for the current file (used when the master/per-language toggle
+  // changes). Resets the compartment to empty first, then re-attaches if the feature is now on.
+  reapplyLsp(): void {
+    if (!this.editor) return;
+    this.editor.dispatch({ effects: this.lspLayer.reconfigure([]) });
+    this.lspStatusEl?.remove();
+    this.lspStatusEl = null;
+    void this.maybeAttachLsp(this.editor);
+  }
+
+  // Show the LSP connection state in the view header (FR-013). One reused action element; its icon
+  // and tooltip reflect the current state and the server's origin.
+  private showLspStatus(status: LspStatus): void {
+    const label: Record<LspStatus["state"], string> = {
+      starting: "Language server: starting…",
+      ready: "Language server: connected",
+      restarting: "Language server: reconnecting…",
+      failed: "Language server: unavailable",
+      disposed: "Language server: stopped",
+      "no-server": "Language server: none found",
+      disabled: "Language server: off",
+      "attached-elsewhere": "Language server: active in another view",
+    };
+    const icon: Record<LspStatus["state"], string> = {
+      starting: "loader",
+      ready: "circle-check",
+      restarting: "loader",
+      failed: "circle-x",
+      disposed: "circle-slash",
+      "no-server": "circle-help",
+      disabled: "circle-slash",
+      "attached-elsewhere": "circle-dot",
+    };
+    const text = status.origin && status.state === "ready" ? `${label.ready} (${status.origin})` : label[status.state];
+    if (!this.lspStatusEl) this.lspStatusEl = this.addAction(icon[status.state], text, () => {});
+    else setIcon(this.lspStatusEl, icon[status.state]);
+    this.lspStatusEl.setAttribute("aria-label", text);
   }
 
   // Bundled Lezer/legacy highlighter plus its syntax-error underlines (the latter for lang-* only).
@@ -176,6 +295,16 @@ export class CodeView extends TextFileView implements SelectionProvider {
       ? treeSitterExtensions(grammar)
       : [languageExtension(ext) ?? [], treeSitterExtensions({ parser: grammar.parser, query: null })];
     view.dispatch({ effects: this.langLayer.reconfigure(layer) });
+  }
+
+  // Re-apply the highlighting layer to the live editor when the tree-sitter setting toggles: reset to
+  // the Lezer/legacy base (dropping any tree-sitter layer and its error underlines), then upgrade again
+  // if the feature is now on. Without this the open editor keeps the previous layer until it is reopened.
+  applyTreeSitter(): void {
+    if (!this.editor || !this.file) return;
+    const ext = grammarKeyForPath(this.file.path);
+    this.editor.dispatch({ effects: this.langLayer.reconfigure(this.lezerLayer(ext)) });
+    void this.maybeUpgradeToTreeSitter(ext, this.editor);
   }
 
   // Load `git blame` for the open file and push it into the editor. When blame is disabled it clears

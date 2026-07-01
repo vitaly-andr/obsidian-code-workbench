@@ -1,6 +1,6 @@
 {
   "name": "obsidian-code-workbench",
-  "version": "3.3.2",
+  "version": "4.0.0",
   "description": "Code Workbench — Claude Code integration for Obsidian.",
   "main": "main.js",
   "type": "module",
@@ -8,6 +8,7 @@
     "dev": "node esbuild.config.mjs",
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
     "test": "vitest run",
+    "lint": "eslint \"src/**/*.ts\" main.ts",
     "smoke": "node tests/runtime/smoke.mjs"
   },
   "keywords": [
@@ -21,6 +22,7 @@
   "devDependencies": {
     "@codemirror/commands": "^6.10.3",
     "@codemirror/language": "^6.12.3",
+    "@codemirror/autocomplete": "^6.20.0",
     "@codemirror/lint": "^6.9.7",
     "@codemirror/state": "6.5.0",
     "@codemirror/view": "^6.38.6",
@@ -28,8 +30,11 @@
     "@types/node": "^20.11.0",
     "@types/ws": "^8.5.10",
     "esbuild": "^0.28.1",
+    "eslint": "^9.39.4",
+    "eslint-plugin-obsidianmd": "^0.3.0",
     "obsidian": "^1.5.0",
     "typescript": "^5.4.5",
+    "typescript-eslint": "^8.62.1",
     "vitest": "^4.1.9"
   },
   "overrides": {
@@ -58,6 +63,7 @@
     "@codemirror/lang-xml": "^6.1.0",
     "@codemirror/lang-yaml": "^6.1.3",
     "@codemirror/legacy-modes": "^6.5.3",
+    "@codemirror/lsp-client": "6.2.5",
     "@codemirror/merge": "^6.7.0",
     "@dprint/formatter": "^0.5.1",
     "@prettier/plugin-xml": "^3.4.2",

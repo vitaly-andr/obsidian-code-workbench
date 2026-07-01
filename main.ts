@@ -40,6 +40,15 @@ import { HiddenEntry, listHiddenFiles } from "./src/views/hidden-files";
 import { getCurrentBranch, loadBlame, loadHeadBlob, resolveRepository } from "./src/git/log";
 import { watchGitRefs } from "./src/git/watch";
 import type { CurrentBranch } from "./src/git/types";
+// Editor-LSP persisted settings only. The type and defaults are plain data (no CM6 / child_process),
+// so importing them does not pull the lazy LSP runtime (src/lsp/index.ts) into startup.
+import { DEFAULT_LSP_SETTINGS, isLanguageEnabled } from "./src/lsp/settings";
+import type { LspSettings } from "./src/lsp/settings";
+// Type-only imports are erased at build, so naming the LSP controller/config here does NOT pull the
+// lazy runtime into the base bundle — that only happens at the dynamic import() in lspAttach.
+import type { LspController, ScanResult } from "./src/lsp";
+import type { LspEditorConfig } from "./src/views/code-view";
+import type { Extension } from "@codemirror/state";
 
 // window.open is unreliable in Obsidian's renderer; open external URLs through Electron's shell,
 // falling back to window.open.
@@ -81,6 +90,9 @@ interface CodeWorkbenchSettings {
   vaultTools: boolean;
   // Opt-in: surface the vault's hidden (dot) files in settings so they can be opened and edited.
   showHiddenFiles: boolean;
+  // Opt-in editor language intelligence via discovered LSP servers (005-editor-lsp). Disabled by
+  // default; the LSP runtime is lazily imported only when enabled (FR-001/FR-024).
+  lsp: LspSettings;
 }
 
 const DEFAULT_SETTINGS: CodeWorkbenchSettings = {
@@ -91,6 +103,7 @@ const DEFAULT_SETTINGS: CodeWorkbenchSettings = {
   gitDecorations: true,
   vaultTools: false,
   showHiddenFiles: false,
+  lsp: DEFAULT_LSP_SETTINGS,
 };
 
 export default class CodeWorkbenchPlugin extends Plugin {
@@ -110,9 +123,16 @@ export default class CodeWorkbenchPlugin extends Plugin {
   private gitStatusTimer: number | null = null;
   private mdBlameTimer: number | null = null;
   private gitWatchDispose: (() => void) | null = null;
+  // Editor-LSP controller, loaded lazily on first enable so the base bundle/startup are untouched
+  // when the feature is off (FR-024 / SC-003).
+  private lspController: LspController | null = null;
+  private lspLoading: Promise<LspController> | null = null;
 
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) as Partial<CodeWorkbenchSettings>);
+    // The top-level assign is shallow, so a stored partial `lsp` would drop the nested defaults
+    // (perLanguage/customServers). Merge the LSP object on its own so new sub-fields keep defaults.
+    this.settings.lsp = Object.assign({}, DEFAULT_LSP_SETTINGS, this.settings.lsp);
 
     const authToken = randomUUID();
     const ctx: IdeContext = {
@@ -181,9 +201,16 @@ export default class CodeWorkbenchPlugin extends Plugin {
     );
     const tsConfig = { loader: grammarLoader, enabled: () => this.settings.treeSitter };
     const blameConfig = { enabled: () => this.settings.gitBlame };
+    // Editor-LSP wiring. `enabled` is a cheap data-only check (no runtime import); `attach` lazily
+    // loads src/lsp on first use, so a disabled feature never pulls the LSP runtime (SC-003).
+    const lspConfig: LspEditorConfig = {
+      enabled: (language) => isLanguageEnabled(this.settings.lsp, language),
+      attach: (input) => this.lspAttach(input),
+      release: (owner) => this.lspController?.releaseOwner(owner),
+    };
     this.registerView(
       CODE_VIEW_TYPE,
-      (leaf) => new CodeView(leaf, tsConfig, formatService, blameConfig, editorMenuHost),
+      (leaf) => new CodeView(leaf, tsConfig, formatService, blameConfig, editorMenuHost, lspConfig),
     );
     try {
       // One batched call instead of ~95 — far less file-explorer churn on enable.
@@ -378,9 +405,67 @@ export default class CodeWorkbenchPlugin extends Plugin {
     }
   }
 
+  // Lazily build the LSP controller on first enable. The dynamic import() is what pulls the LSP
+  // runtime + @codemirror/lsp-client in, so nothing loads while the feature is off. Not `private`:
+  // the settings tab calls this to scan for servers (006) without duplicating the lazy-load seam.
+  async ensureLspController(): Promise<LspController> {
+    if (this.lspController) return this.lspController;
+    if (!this.lspLoading) {
+      this.lspLoading = import("./src/lsp").then((m) =>
+        m.createLspController({
+          settings: () => this.settings.lsp,
+          vaultRoot: () => vaultBasePath(this.app),
+          notify: (message) => new Notice(message),
+          toRelativePath: (absPath) => vaultPathForAbsolute(this.app, absPath),
+        }),
+      );
+    }
+    this.lspController = await this.lspLoading;
+    return this.lspController;
+  }
+
+  // Resolve a file to its LSP editor extension (or null to stay highlighting-only). Called by the
+  // CodeView only after its cheap `enabled` gate passes.
+  private async lspAttach(...args: Parameters<LspEditorConfig["attach"]>): Promise<Extension | null> {
+    const [input] = args;
+    const controller = await this.ensureLspController();
+    const result = await controller.resolve({
+      filePath: input.filePath,
+      language: input.language,
+      owner: input.owner,
+      onStatus: input.onStatus,
+    });
+    return result.kind === "attached" ? controller.buildEditorExtension(result) : null;
+  }
+
+  // Re-evaluate the LSP layer on every open code view (used when the master toggle changes). Turning
+  // it off disposes all sessions (no orphan processes); both directions re-render the views so the
+  // layer reflects the new setting.
+  refreshLspViews(): void {
+    if (!this.settings.lsp.enabled) {
+      this.lspController?.dispose();
+      this.lspController = null;
+      this.lspLoading = null;
+    }
+    for (const leaf of this.app.workspace.getLeavesOfType(CODE_VIEW_TYPE)) {
+      const view = leaf.view;
+      if (view instanceof CodeView) view.reapplyLsp();
+    }
+  }
+
+  // Re-apply the tree-sitter highlighting layer to every open code view (used when "Enable syntax
+  // highlighting" toggles), so the change shows immediately instead of only on the next file open.
+  refreshCodeViews(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(CODE_VIEW_TYPE)) {
+      if (leaf.view instanceof CodeView) leaf.view.applyTreeSitter();
+    }
+  }
+
   onunload(): void {
     // Fire-and-forget cleanup: Obsidian does not await onunload, and the lock/server teardown
     // is best-effort.
+    this.lspController?.dispose();
+    this.lspController = null;
     void this.lock?.remove().catch((e) => warn("lock removal failed", e));
     void this.server?.stop().catch((e) => warn("server stop failed", e));
     void this.companion?.stop().catch((e) => warn("companion stop failed", e));
@@ -863,6 +948,28 @@ const LANGS: ReadonlyArray<readonly [string, boolean, boolean, boolean]> = [
   ["Zig", true, true, true],
 ];
 
+// Human-readable label for a canonical grammar id (src/lsp/registry.ts), for the "Detected language
+// servers" list (006). Falls back to a capitalized id for anything not listed here.
+const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
+  ruby: "Ruby", typescript: "TypeScript", javascript: "JavaScript", tsx: "TSX", python: "Python",
+  rust: "Rust", go: "Go", c: "C", cpp: "C++", objc: "Objective-C", csharp: "C#", java: "Java",
+  php: "PHP", scala: "Scala", haskell: "Haskell", elixir: "Elixir", zig: "Zig", lua: "Lua",
+  bash: "Bash", swift: "Swift", r: "R", perl: "Perl", clojure: "Clojure", dart: "Dart",
+  julia: "Julia", kotlin: "Kotlin", vue: "Vue", svelte: "Svelte", html: "HTML", css: "CSS",
+  json: "JSON", yaml: "YAML", toml: "TOML", xml: "XML", sql: "SQL", astro: "Astro",
+};
+
+function languageDisplayName(language: string): string {
+  return LANGUAGE_DISPLAY_NAMES[language] ?? language.charAt(0).toUpperCase() + language.slice(1);
+}
+
+// "on PATH" / "via a version manager" / "user-configured" (FR-010).
+function originLabel(origin: "path" | "version-manager" | "user"): string {
+  if (origin === "version-manager") return "via a version manager";
+  if (origin === "user") return "user-configured";
+  return "on PATH";
+}
+
 class CodeWorkbenchSettingTab extends PluginSettingTab {
   constructor(app: App, private readonly plugin: CodeWorkbenchPlugin) {
     super(app, plugin);
@@ -1113,6 +1220,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
         toggle.setValue(this.plugin.settings.treeSitter).onChange(async (value) => {
           this.plugin.settings.treeSitter = value;
           await this.plugin.saveData(this.plugin.settings);
+          this.plugin.refreshCodeViews();
         }),
       );
 
@@ -1207,6 +1315,155 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       } else {
         vt.setText("Starting the companion server…");
       }
+    }
+
+    // Editor-LSP (005-editor-lsp). Skeleton only: the master switch persists here; per-language
+    // Master switch + (when on) the agent-diagnostics toggle, per-language opt-out, and custom server
+    // commands (FR-002/FR-025/FR-026). The persisted shape and the discovery/runtime already honour
+    // these; this is the user surface. Review-lint-safe: descriptive heading, Setting controls only,
+    // no inline styles, window timers.
+    new Setting(containerEl).setName("Language servers (LSP)").setHeading();
+    new Setting(containerEl)
+      .setName("Editor language intelligence")
+      .setDesc(
+        "Opt-in. When on, the editor discovers a language server you already have installed (it never " +
+          "installs one) and adds diagnostics, completion, hover, and go-to-definition on top of " +
+          "highlighting. Off by default; nothing runs and startup is unchanged while it is off. " +
+          "Desktop-only.",
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.lsp.enabled).onChange(async (value) => {
+          this.plugin.settings.lsp.enabled = value;
+          await this.plugin.saveData(this.plugin.settings);
+          this.plugin.refreshLspViews();
+          this.display();
+        }),
+      );
+
+    if (this.plugin.settings.lsp.enabled) {
+      // Agent diagnostics (FR-026): route the editor's LSP diagnostics into the IDE getDiagnostics
+      // tool so Claude gets an edit → verify → fix loop. Live (the bridge is implemented); read-only.
+      new Setting(containerEl)
+        .setName("Send diagnostics to Claude")
+        .setDesc(
+          "Let the Claude agent read the same errors and warnings the editor shows, through the IDE " +
+            "getDiagnostics tool, for an edit → verify → fix loop. Read-only; off leaves getDiagnostics empty.",
+        )
+        .addToggle((toggle) =>
+          toggle.setValue(this.plugin.settings.lsp.exposeToAgent).onChange(async (value) => {
+            this.plugin.settings.lsp.exposeToAgent = value;
+            await this.plugin.saveData(this.plugin.settings);
+          }),
+        );
+
+      // Detected language servers (006): scan the resolved environment for installed servers on
+      // section-open and list each connectable language (US1). Async — Obsidian's display() is
+      // synchronous, so a "Scanning…" placeholder holds the spot (FR-008) until the scan resolves.
+      new Setting(containerEl).setName("Detected language servers").setHeading();
+      const scanContainer = containerEl.createDiv({ cls: "cw-lsp-scan" });
+      new Setting(scanContainer).setName("Scanning…").setDesc("Looking for installed language servers.");
+
+      // "Show all / not installed" is a pure repaint of the last scan result — no re-scan, so
+      // toggling it never flashes "Scanning…" (that stays reserved for an actual (re)scan).
+      let notInstalledOpen = false;
+
+      const paintScan = (result: ScanResult): void => {
+        scanContainer.empty();
+
+        if (result.detected.length === 0) {
+          // Never a blank area (FR-006): point at how to install one and where the hints are.
+          new Setting(scanContainer)
+            .setName("No language servers detected")
+            .setDesc(
+              "None of the supported servers were found. See \"Show all / not installed\" below for " +
+                "install hints, then Rescan.",
+            );
+        }
+        for (const server of result.detected) {
+          // Toggle drives the same perLanguage map the editor runtime reads (FR-012): ON deletes
+          // the key (absent = enabled), OFF writes `false`. onChange re-applies to open editors
+          // immediately (SC-002), superseding the old comma-separated "Disabled languages" field.
+          new Setting(scanContainer)
+            .setName(`${languageDisplayName(server.language)} — ${server.serverId}`)
+            .setDesc(`Detected ${originLabel(server.origin)}.`)
+            .addToggle((toggle) =>
+              toggle
+                .setValue(this.plugin.settings.lsp.perLanguage[server.language] !== false)
+                .onChange(async (value) => {
+                  if (value) delete this.plugin.settings.lsp.perLanguage[server.language];
+                  else this.plugin.settings.lsp.perLanguage[server.language] = false;
+                  await this.plugin.saveData(this.plugin.settings);
+                  this.plugin.refreshLspViews();
+                }),
+            );
+        }
+
+        new Setting(scanContainer)
+          .setName("Rescan")
+          .setDesc("Re-run detection, e.g. right after installing a server. No restart needed.")
+          .addButton((button) =>
+            button.setButtonText("Rescan").onClick(() => void runScan(true)),
+          );
+
+        new Setting(scanContainer)
+          .setName(notInstalledOpen ? "Hide not-installed languages" : "Show all / not installed")
+          .setDesc("The remaining supported languages with no detected server, and how to install one.")
+          .addButton((button) =>
+            button.setButtonText(notInstalledOpen ? "Hide" : "Show all").onClick(() => {
+              notInstalledOpen = !notInstalledOpen;
+              paintScan(result);
+            }),
+          );
+        if (notInstalledOpen) {
+          for (const lang of result.notDetected) {
+            new Setting(scanContainer).setName(languageDisplayName(lang.language)).setDesc(lang.installHint);
+          }
+        }
+      };
+
+      const runScan = async (rescan: boolean): Promise<void> => {
+        scanContainer.empty();
+        new Setting(scanContainer).setName("Scanning…").setDesc("Looking for installed language servers.");
+        const controller = await this.plugin.ensureLspController();
+        if (rescan) (await import("./src/lsp")).invalidateEnvironmentCache();
+        const result = await controller.scanServers();
+        // The tab may have re-rendered (master toggle) or closed while the scan was in flight;
+        // isConnected is false once containerEl.empty() detached this subsection — skip that paint.
+        if (!scanContainer.isConnected) return;
+        paintScan(result);
+      };
+
+      void runScan(false);
+
+      // Custom servers (FR-025): one "language = command arg1 arg2" per line. A user-configured
+      // server is trusted and overrides discovery for that language. Parsed on change.
+      const customLines = Object.entries(this.plugin.settings.lsp.customServers)
+        .map(([lang, s]) => `${lang} = ${[s.command, ...(s.args ?? [])].join(" ")}`)
+        .join("\n");
+      new Setting(containerEl)
+        .setName("Custom servers (advanced)")
+        .setDesc(
+          "One per line as \"language = command args\", e.g. \"ruby = /opt/ruby-lsp\". A server you " +
+            "configure here is trusted and used instead of auto-discovery for that language.",
+        )
+        .addTextArea((area) =>
+          area
+            .setValue(customLines)
+            .onChange(async (value) => {
+              const map: Record<string, { command: string; args?: string[] }> = {};
+              for (const line of value.split("\n")) {
+                const eq = line.indexOf("=");
+                if (eq < 0) continue;
+                const lang = line.slice(0, eq).trim().toLowerCase();
+                const parts = line.slice(eq + 1).trim().split(/\s+/).filter(Boolean);
+                if (!lang || parts.length === 0) continue;
+                map[lang] = { command: parts[0], args: parts.slice(1) };
+              }
+              this.plugin.settings.lsp.customServers = map;
+              await this.plugin.saveData(this.plugin.settings);
+              this.plugin.refreshLspViews();
+            }),
+        );
     }
 
     new Setting(containerEl).setName("Connection").setDesc(this.plugin.statusText());

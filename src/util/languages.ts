@@ -49,3 +49,17 @@ export function isMarkdown(path: string): boolean {
   const ext = extensionOf(path);
   return ext === "md" || ext === "markdown";
 }
+
+// Canonical grammar id (the key used by src/treesitter/registry.ts and src/lsp/registry.ts) → the
+// LSP protocol `languageId` sent to a server on didOpen. They are identical for almost every
+// language; only a handful differ. Unknown ids pass through unchanged.
+const LSP_LANGUAGE_ID: Record<string, string> = {
+  objc: "objective-c",
+  bash: "shellscript",
+  tsx: "typescriptreact",
+};
+
+// Map a canonical grammar id to the LSP languageId a server expects.
+export function lspLanguageId(canonical: string): string {
+  return LSP_LANGUAGE_ID[canonical] ?? canonical;
+}
