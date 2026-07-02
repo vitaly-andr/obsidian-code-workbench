@@ -8,6 +8,7 @@ import { Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { HighlightStyle, StreamLanguage, type StreamParser, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
+import { indentationMarkers } from "@replit/codemirror-indentation-markers";
 
 import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
@@ -145,6 +146,21 @@ export const obsidianEditorTheme = EditorView.theme({
   // Drop the diagnostic's own padding so the message sits flush with the left severity strip.
   ".cm-tooltip-lint .cm-diagnostic": {
     padding: "0",
+  },
+});
+
+// Indentation guides (007), shared by CodeView and both diff views. `obsidianEditorTheme` above never
+// sets CM6's own `dark` facet — it reads Obsidian's `--*` CSS variables directly instead, the same way
+// every other rule in this file does — so the extension's baseTheme `&dark` branch never engages and it
+// would otherwise always render its hardcoded light-mode default regardless of the active Obsidian
+// theme. Point both branches at the same Obsidian border variable (already used above for tooltip
+// borders) so the guide reads as subtle on any theme (FR-005/SC-004). `highlightActiveBlock: false`:
+// the spec's v1 explicitly excludes the "active indentation block" accent some editors add.
+export const indentGuides = indentationMarkers({
+  highlightActiveBlock: false,
+  colors: {
+    light: "var(--background-modifier-border)",
+    dark: "var(--background-modifier-border)",
   },
 });
 

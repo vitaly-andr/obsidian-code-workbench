@@ -1,6 +1,6 @@
 {
   "name": "obsidian-code-workbench",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Code Workbench — Claude Code integration for Obsidian.",
   "main": "main.js",
   "type": "module",
@@ -67,6 +67,7 @@
     "@codemirror/merge": "^6.7.0",
     "@dprint/formatter": "^0.5.1",
     "@prettier/plugin-xml": "^3.4.2",
+    "@replit/codemirror-indentation-markers": "^6.5.3",
     "@ruby/prism": "^1.9.0",
     "@wasm-fmt/biome_fmt": "^0.2.9",
     "@wasm-fmt/clang-format": "^22.1.7",

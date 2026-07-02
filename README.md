@@ -20,8 +20,10 @@
 
 - **Edit non-Markdown files.** Obsidian only edits Markdown. Code Workbench opens `.rs`, `.py`, `.ts`, `.go`, `.json`, `.yaml` and dozens more in an editable, highlighted view, and saves your changes back to the file.
 - **Syntax highlighting** for about 50 languages via tree-sitter, colored to match your Obsidian theme.
+- **Indentation guides.** Faint vertical lines mark each indentation level in the code editor and in diffs. On by default; toggle in settings.
 - **Diagnostics:** syntax errors are underlined where they occur, for about 48 languages.
 - **One-command formatting** for about 28 languages, including JSON, XML, YAML, TOML, JavaScript, TypeScript, Python, Go, Rust, Ruby, PHP, and C/C++.
+- **Language-server intelligence (opt-in).** Turn it on and the editor connects to a language server you already have installed and adds real diagnostics, autocomplete, hover documentation, go-to-definition, and find-references — for Ruby, Python, Rust, Go, TypeScript, and about 30 more. It discovers servers and never installs them, and the same diagnostics reach Claude for an edit-verify-fix loop. Off by default.
 - **Accept or reject Claude's edits.** A proposed change opens as a side-by-side diff. Keep it or reject it, and edit the proposed side first if you want. Nothing is written until you keep it.
 - **Works with any model.** It speaks the Claude Code CLI protocol, not a model API, so it runs with Claude, Kimi K2, DeepSeek, GLM, or any Anthropic-compatible endpoint you use through the CLI.
 - **Launch Claude in one click.** Start the CLI in your vault from the status bar or settings; it opens your terminal in the right folder.
@@ -117,6 +119,8 @@ Highlighting for 52 languages, diagnostics for 48, formatting for 28. Each gramm
 | Zig | ✅ | ✅ | ✅ |
 
 A simple highlighter is always on. Turn on **Settings → Code Workbench → Enable syntax highlighting** for the richer tree-sitter highlighting and the diagnostics above.
+
+For semantic help beyond syntax — real errors, autocomplete, hover, and navigation — turn on **Editor language intelligence** in settings. It uses a language server you already have installed (Ruby, Python, Rust, Go, and about 30 more), never installs one, and lists what it found so you can toggle each language.
 
 ## Using it
 

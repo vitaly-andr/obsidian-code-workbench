@@ -5,7 +5,7 @@ import { ItemView, WorkspaceLeaf } from "obsidian";
 import { EditorState } from "@codemirror/state";
 import { MergeView } from "@codemirror/merge";
 import { extensionOf } from "../util/languages";
-import { languageExtension, obsidianEditorTheme, obsidianHighlighting } from "./cm-theme";
+import { indentGuides, languageExtension, obsidianEditorTheme, obsidianHighlighting } from "./cm-theme";
 import { DIFF_VIEW_TYPE } from "./view-types";
 
 export interface DiffRequest {
@@ -24,7 +24,7 @@ export class DiffView extends ItemView {
   private request: DiffRequest | null = null;
   private decided = false;
 
-  constructor(leaf: WorkspaceLeaf) {
+  constructor(leaf: WorkspaceLeaf, private readonly indentGuidesEnabled?: () => boolean) {
     super(leaf);
   }
 
@@ -67,7 +67,8 @@ export class DiffView extends ItemView {
 
     const host = root.createDiv({ cls: "code-workbench-diff-merge" });
     const lang = languageExtension(extensionOf(req.oldFilePath));
-    const common = [obsidianEditorTheme, obsidianHighlighting, ...(lang ? [lang] : [])];
+    // Indentation guides on both panes (007), gated by the same setting as the editor (on by default).
+    const common = [obsidianEditorTheme, obsidianHighlighting, ...(this.indentGuidesEnabled?.() !== false ? [indentGuides] : []), ...(lang ? [lang] : [])];
     this.merge = new MergeView({
       a: { doc: req.oldContents, extensions: [...common, EditorState.readOnly.of(true)] },
       b: { doc: req.newContents, extensions: [...common] },

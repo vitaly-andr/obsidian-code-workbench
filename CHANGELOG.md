@@ -4,6 +4,13 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.1.0] - 2026-07-02
+
+### Added
+- Indentation guides: faint vertical lines mark each indentation level in the code editor and in both
+  side-by-side diffs (Keep/Reject and the git-graph commit diff). On by default, with a "Show indentation
+  guides" toggle in settings.
+
 ## [4.0.0] - 2026-07-01
 
 ### Added

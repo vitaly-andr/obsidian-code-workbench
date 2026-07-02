@@ -13,7 +13,7 @@ import type { EditorMenuHost } from "./editor-context-menu";
 import { grammarKeyForPath } from "../util/languages";
 import { absoluteForVaultPath, toFileUri, vaultBasePath } from "../util/paths";
 import { CODE_VIEW_TYPE } from "./view-types";
-import { languageExtension, obsidianEditorTheme, obsidianHighlighting } from "./cm-theme";
+import { indentGuides, languageExtension, obsidianEditorTheme, obsidianHighlighting } from "./cm-theme";
 import { syntaxDiagnostics } from "./lezer-lint";
 import { blameAnnotation, setBlame } from "./blame-annotation";
 import { formatCode } from "../format/prettier-format";
@@ -81,6 +81,8 @@ export class CodeView extends TextFileView implements SelectionProvider {
     private readonly blame?: BlameConfig,
     private readonly menuHost?: EditorMenuHost,
     private readonly lsp?: LspEditorConfig,
+    // Live read of the "Show indentation guides" setting (007). Absent => on (default).
+    private readonly indentGuidesEnabled?: () => boolean,
   ) {
     super(leaf);
   }
@@ -155,6 +157,10 @@ export class CodeView extends TextFileView implements SelectionProvider {
     const extensions: Extension[] = [
       lineNumbers(),
       highlightActiveLine(),
+      // Vertical guide at each indentation level (007). Editor chrome like lineNumbers(); on by
+      // default, and the "Show indentation guides" setting can turn it off (refreshCodeViews
+      // re-renders open views on change).
+      ...(this.indentGuidesEnabled?.() !== false ? [indentGuides] : []),
       history(),
       keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
       obsidianEditorTheme,

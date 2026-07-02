@@ -5,7 +5,7 @@ import { ItemView, WorkspaceLeaf } from "obsidian";
 import { EditorState } from "@codemirror/state";
 import { MergeView } from "@codemirror/merge";
 import { extensionOf } from "../util/languages";
-import { languageExtension, obsidianEditorTheme, obsidianHighlighting } from "./cm-theme";
+import { indentGuides, languageExtension, obsidianEditorTheme, obsidianHighlighting } from "./cm-theme";
 import { GIT_DIFF_VIEW_TYPE } from "./view-types";
 
 export interface GitDiffData {
@@ -22,7 +22,7 @@ export class GitDiffView extends ItemView {
   private data: GitDiffData | null = null;
   private merge: MergeView | null = null;
 
-  constructor(leaf: WorkspaceLeaf) {
+  constructor(leaf: WorkspaceLeaf, private readonly indentGuidesEnabled?: () => boolean) {
     super(leaf);
   }
 
@@ -52,9 +52,11 @@ export class GitDiffView extends ItemView {
     root.createDiv({ cls: "code-workbench-diff-bar" }).createSpan({ text: d.title });
     const host = root.createDiv({ cls: "code-workbench-diff-merge" });
     const lang = languageExtension(extensionOf(d.path));
+    // Indentation guides on both panes (007), gated by the same setting as the editor (on by default).
     const common = [
       obsidianEditorTheme,
       obsidianHighlighting,
+      ...(this.indentGuidesEnabled?.() !== false ? [indentGuides] : []),
       ...(lang ? [lang] : []),
       EditorState.readOnly.of(true),
     ];

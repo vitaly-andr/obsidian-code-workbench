@@ -80,6 +80,8 @@ interface CodeWorkbenchSettings {
   shareSelection: boolean;
   // Opt-in: use tree-sitter for highlighting + diagnostics. Grammars download on first use.
   treeSitter: boolean;
+  // Draw vertical indentation guides in the code editor and diffs. On by default (editor chrome).
+  indentGuides: boolean;
   // Show the author/commit of the current line as an inline git blame annotation in the editor.
   gitBlame: boolean;
   // Show Material file/folder icons in the explorer. SVGs download on first use.
@@ -98,6 +100,7 @@ interface CodeWorkbenchSettings {
 const DEFAULT_SETTINGS: CodeWorkbenchSettings = {
   shareSelection: true,
   treeSitter: true,
+  indentGuides: true,
   gitBlame: true,
   fileIcons: true,
   gitDecorations: true,
@@ -171,7 +174,7 @@ export default class CodeWorkbenchPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on("file-open", () => this.scheduleGitBranchRefresh()));
     void this.refreshGitBranch();
 
-    this.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf));
+    this.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf, () => this.settings.indentGuides));
     this.registerView(
       HIDDEN_FILE_VIEW_TYPE,
       (leaf) =>
@@ -183,7 +186,7 @@ export default class CodeWorkbenchPlugin extends Plugin {
     );
     this.registerView(HIDDEN_TREE_VIEW_TYPE, (leaf) => new HiddenFilesView(leaf, this));
     this.registerView(GIT_GRAPH_VIEW_TYPE, (leaf) => new GitGraphView(leaf));
-    this.registerView(GIT_DIFF_VIEW_TYPE, (leaf) => new GitDiffView(leaf));
+    this.registerView(GIT_DIFF_VIEW_TYPE, (leaf) => new GitDiffView(leaf, () => this.settings.indentGuides));
     this.addRibbonIcon("git-branch", "Open git graph", () => void this.openGitGraphPanel());
     this.addCommand({
       id: "open-git-graph",
@@ -210,7 +213,16 @@ export default class CodeWorkbenchPlugin extends Plugin {
     };
     this.registerView(
       CODE_VIEW_TYPE,
-      (leaf) => new CodeView(leaf, tsConfig, formatService, blameConfig, editorMenuHost, lspConfig),
+      (leaf) =>
+        new CodeView(
+          leaf,
+          tsConfig,
+          formatService,
+          blameConfig,
+          editorMenuHost,
+          lspConfig,
+          () => this.settings.indentGuides,
+        ),
     );
     try {
       // One batched call instead of ~95 — far less file-explorer churn on enable.
@@ -1219,6 +1231,19 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.treeSitter).onChange(async (value) => {
           this.plugin.settings.treeSitter = value;
+          await this.plugin.saveData(this.plugin.settings);
+          this.plugin.refreshCodeViews();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Show indentation guides")
+      .setDesc(
+        "Draw faint vertical lines at each indentation level in the code editor and in diffs. On by default.",
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.indentGuides).onChange(async (value) => {
+          this.plugin.settings.indentGuides = value;
           await this.plugin.saveData(this.plugin.settings);
           this.plugin.refreshCodeViews();
         }),

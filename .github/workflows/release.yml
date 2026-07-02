@@ -37,10 +37,25 @@ jobs:
             manifest.json
             styles.css
 
+      - name: Release notes from CHANGELOG
+        run: |
+          # Extract this tag's section from CHANGELOG.md — everything under "## [<tag>]" up to the
+          # next "## [" heading — so the GitHub release describes the actual change, not a placeholder.
+          awk -v ver="$GITHUB_REF_NAME" '
+            index($0, "## [" ver "]") == 1 { grab = 1; next }
+            grab && index($0, "## [") == 1 { exit }
+            grab { print }
+          ' CHANGELOG.md > release-notes.md
+          # Fall back to a one-liner if the tag has no CHANGELOG section.
+          if [ ! -s release-notes.md ]; then
+            printf 'Release %s. Desktop only.\n' "$GITHUB_REF_NAME" > release-notes.md
+          fi
+          echo "----- release notes -----"; cat release-notes.md
+
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "$GITHUB_REF_NAME" main.js manifest.json styles.css \
             --title "$GITHUB_REF_NAME" \
-            --notes "Plugin-review fixes (see commit history). Desktop only."
+            --notes-file release-notes.md
