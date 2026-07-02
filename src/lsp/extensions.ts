@@ -11,7 +11,15 @@
 // then pulls that editor extension in automatically (T017). The remaining features (completion/
 // hover/signature/definition/references) are plain editor extensions added per US2–US4.
 
-import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate, keymap } from "@codemirror/view";
+import {
+  Decoration,
+  type DecorationSet,
+  EditorView,
+  ViewPlugin,
+  type ViewUpdate,
+  WidgetType,
+  keymap,
+} from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
 import {
   LSPClient,
@@ -27,6 +35,7 @@ import type { LspDiagnostic } from "./diagnostics-bridge";
 import { linter, type Diagnostic as CmDiagnostic } from "@codemirror/lint";
 import { lspPositionToOffset, offsetToLspPosition, type LspPosition } from "./offsets";
 import { mapHighlights, type HighlightKind, type LspDocumentHighlight } from "./highlight";
+import { mapInlayHints, type InlayHintKind, type LspInlayHint } from "./inlay";
 
 // Which v1 features to wire. All default on; the per-US tasks enable them incrementally. Rename and
 // formatting are intentionally absent — they mutate files and are post-v1 (US5/US6), gated behind the
@@ -38,6 +47,7 @@ export interface LspFeatures {
   definition: boolean; // US4
   references: boolean; // US4
   documentHighlight: boolean; // 009: occurrences of the symbol under the cursor
+  inlayHint: boolean; // 010: inline inferred types + parameter names
 }
 
 export const ALL_FEATURES: LspFeatures = {
@@ -47,6 +57,7 @@ export const ALL_FEATURES: LspFeatures = {
   definition: true,
   references: true,
   documentHighlight: true,
+  inlayHint: true,
 };
 
 // Client-level extensions, passed to `new LSPClient({ extensions })`. serverDiagnostics() advertises
@@ -224,9 +235,140 @@ export function documentHighlights(client: LSPClient, uri: string): Extension {
   });
 }
 
+// Debounce delay for an inlayHint re-request (FR-003) — short, same as the 009 highlight delay, so
+// hints feel near-instant (SC-001) without spamming the server on every edit/scroll tick.
+const INLAY_DEBOUNCE_MS = 200;
+
+// A non-editable, atomic inline annotation (an inferred type or a parameter name). Decoration.widget
+// content is not part of the document model, so it is never selected, copied, or edited (FR-005) —
+// unlike 009's mark decorations, which tint existing text, a widget can render content that is not
+// in the doc at all, which is what an inlay hint is (research.md R2).
+class InlayHintWidget extends WidgetType {
+  constructor(
+    private readonly label: string,
+    private readonly kind: InlayHintKind,
+    private readonly paddingLeft: boolean,
+    private readonly paddingRight: boolean,
+  ) {
+    super();
+  }
+
+  eq(other: InlayHintWidget): boolean {
+    return (
+      this.label === other.label &&
+      this.kind === other.kind &&
+      this.paddingLeft === other.paddingLeft &&
+      this.paddingRight === other.paddingRight
+    );
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    // The view's own document, not the global one, so this still renders correctly in a popped-out
+    // window (same convention as the diff view's revert button / git-graph's SVG elements).
+    const span = view.dom.ownerDocument.createElement("span");
+    span.className = `cw-lsp-inlay cw-lsp-inlay-${this.kind}`;
+    if (this.paddingLeft) span.classList.add("cw-lsp-inlay-pad-left");
+    if (this.paddingRight) span.classList.add("cw-lsp-inlay-pad-right");
+    span.textContent = this.label;
+    return span;
+  }
+}
+
+// Drives one file's inlay-hint widgets. @codemirror/lsp-client has no built-in inlay-hint feature
+// (same gap as 009's document-highlight), so this is a custom ViewPlugin shaped like
+// DocumentHighlighter — gate on serverCapabilities, client.request, offsets.ts mapping, debounce +
+// stale-drop — but widget (not mark) decorations, and the request is scoped to the visible line
+// range (inlayHint is a range request) rather than a single cursor position.
+class InlayHinter {
+  decorations: DecorationSet = Decoration.none;
+  private timer: number | null = null;
+  // Bumped on every request; a response is applied only if it is still the latest (drops a stale
+  // result from a superseded viewport/doc state, contract B3/US2).
+  private generation = 0;
+
+  constructor(
+    private readonly view: EditorView,
+    private readonly client: LSPClient,
+    private readonly uri: string,
+  ) {
+    this.schedule();
+  }
+
+  update(u: ViewUpdate): void {
+    // viewportChanged (US2): scroll/resize reveals new lines, which need their own hints — not just
+    // an edit. run() always re-reads view.viewport fresh, so this naturally re-scopes to wherever the
+    // user scrolled to.
+    if (u.docChanged || u.viewportChanged) this.schedule();
+  }
+
+  destroy(): void {
+    if (this.timer !== null) window.clearTimeout(this.timer);
+  }
+
+  private schedule(): void {
+    if (this.timer !== null) window.clearTimeout(this.timer);
+    this.timer = window.setTimeout(() => {
+      this.timer = null;
+      void this.run();
+    }, INLAY_DEBOUNCE_MS);
+  }
+
+  private async run(): Promise<void> {
+    const gen = ++this.generation;
+    // serverCapabilities is typed via vscode-languageserver-protocol, which this file avoids
+    // depending on; narrow to the one field read here, same convention as pullDiagnostics.
+    const caps = this.client.serverCapabilities as { inlayHintProvider?: unknown } | null;
+    if (!caps?.inlayHintProvider) return this.clear();
+    this.client.sync(); // flush pending didChange so the server sees the current text (pullDiagnostics precedent)
+    const doc = this.view.state.doc.toString();
+    // Never the whole document — inlayHint is a range request, so scope it to what is on screen
+    // (FR-003; the viewport is re-read fresh on every request so scrolling picks up new lines).
+    const { from, to } = this.view.viewport;
+    const range = { start: offsetToLspPosition(doc, from), end: offsetToLspPosition(doc, to) };
+    let raw: LspInlayHint[] | null;
+    try {
+      raw = await this.client.request<
+        { textDocument: { uri: string }; range: { start: LspPosition; end: LspPosition } },
+        LspInlayHint[] | null
+      >("textDocument/inlayHint", { textDocument: { uri: this.uri }, range });
+    } catch {
+      raw = null; // disconnected / timed out — clear rather than keep stale hints
+    }
+    if (gen !== this.generation) return; // the viewport/doc moved on before this resolved
+    if (!raw || raw.length === 0) return this.clear();
+    const hints = mapInlayHints(raw, this.view.state.doc.toString());
+    if (hints.length === 0) return this.clear();
+    const widgets = hints
+      .slice()
+      .sort((a, b) => a.offset - b.offset)
+      .map((h) =>
+        Decoration.widget({
+          widget: new InlayHintWidget(h.label, h.kind, h.paddingLeft, h.paddingRight),
+          side: 1,
+        }).range(h.offset),
+      );
+    this.decorations = Decoration.set(widgets);
+    this.view.dispatch({}); // an empty transaction repaints with the new decorations
+  }
+
+  private clear(): void {
+    if (this.decorations === Decoration.none) return; // avoid a needless empty dispatch
+    this.decorations = Decoration.none;
+    this.view.dispatch({});
+  }
+}
+
+// Render the server's inlay hints (inferred types, parameter names) inline (010). Read-only: sends
+// only textDocument/inlayHint, never inlayHint/resolve or a file-modifying request (FR-007).
+export function inlayHints(client: LSPClient, uri: string): Extension {
+  return ViewPlugin.define((view) => new InlayHinter(view, client, uri), {
+    decorations: (v) => v.decorations,
+  });
+}
+
 // The editor extension set for one connected file. `client.plugin(uri, languageId)` wires the file to
 // the server (didOpen/didChange/didClose, push diagnostics display) and pullDiagnostics adds the LSP
-// 3.17 pull path. The rest are the read/navigate features (US2–US4, 009).
+// 3.17 pull path. The rest are the read/navigate features (US2–US4, 009, 010).
 export function buildSessionExtensions(
   client: LSPClient,
   uri: string,
@@ -244,5 +386,6 @@ export function buildSessionExtensions(
   ];
   if (keys.length) ext.push(keymap.of(keys));
   if (features.documentHighlight) ext.push(documentHighlights(client, uri));
+  if (features.inlayHint) ext.push(inlayHints(client, uri));
   return ext;
 }

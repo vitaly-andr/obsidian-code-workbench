@@ -58,3 +58,13 @@ export function offsetToLspPosition(text: string, offset: number): LspPosition {
 export function toOneBased(pos: LspPosition): { line: number; column: number } {
   return { line: pos.line + 1, column: pos.character + 1 };
 }
+
+// True when `pos` addresses real content in `text` — lspPositionToOffset clamps an out-of-range
+// position instead of failing, so round-tripping it back through offsetToLspPosition is how a clamp
+// (and therefore a stale position from an outdated server response) is detected without
+// re-implementing line counting. Shared by every mapper that must drop a stale LSP position (009
+// highlight.ts, 010 inlay.ts, …) rather than silently rendering it in the wrong place.
+export function isCurrentPosition(text: string, pos: LspPosition): boolean {
+  const roundTripped = offsetToLspPosition(text, lspPositionToOffset(text, pos));
+  return roundTripped.line === pos.line && roundTripped.character === pos.character;
+}

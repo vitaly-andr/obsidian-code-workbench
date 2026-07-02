@@ -1433,6 +1433,22 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
           }),
         );
 
+      // Inlay hints (010): render the server's inferred-type and parameter-name hints inline. On by
+      // default; gates just this feature and re-applies to open editors on change (like other LSP toggles).
+      new Setting(containerEl)
+        .setName("Show inlay hints")
+        .setDesc(
+          "Show the language server's inline hints — inferred types and parameter names — in the code " +
+            "editor. Depends on the server providing them (some enable inlay hints only when configured).",
+        )
+        .addToggle((toggle) =>
+          toggle.setValue(this.plugin.settings.lsp.inlayHints !== false).onChange(async (value) => {
+            this.plugin.settings.lsp.inlayHints = value;
+            await this.plugin.saveData(this.plugin.settings);
+            this.plugin.refreshLspViews();
+          }),
+        );
+
       // Detected language servers (006): scan the resolved environment for installed servers on
       // section-open and list each connectable language (US1). Async — Obsidian's display() is
       // synchronous, so a "Scanning…" placeholder holds the spot (FR-008) until the scan resolves.

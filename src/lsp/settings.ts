@@ -23,6 +23,9 @@ export interface LspSettings {
   // getDiagnostics bridge (T028) is implemented; until then getDiagnostics stays empty regardless.
   // (The UI toggle returns with the bridge so a user can opt out without disabling the whole feature.)
   exposeToAgent: boolean;
+  // Render the server's inlay hints (010) inline in the editor. Default true; absent → on. They add
+  // visual noise for some, so this gates just the inlay-hint feature (not the whole LSP).
+  inlayHints: boolean;
 }
 
 export const DEFAULT_LSP_SETTINGS: LspSettings = {
@@ -30,6 +33,7 @@ export const DEFAULT_LSP_SETTINGS: LspSettings = {
   perLanguage: {},
   customServers: {},
   exposeToAgent: true,
+  inlayHints: true,
 };
 
 // Whether the module should do anything for a given language. The master switch gates everything;

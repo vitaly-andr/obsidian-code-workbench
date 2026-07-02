@@ -4,6 +4,14 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.4.0] - 2026-07-02
+
+### Added
+- Inline inlay hints from the language server: inferred types next to variables and return values,
+  and parameter names at call sites, shown as small non-editable annotations (never part of the file's
+  text). On by default with a "Show inlay hints" setting to turn them off. Part of the opt-in
+  language-intelligence feature.
+
 ## [4.3.0] - 2026-07-02
 
 ### Added

@@ -7,7 +7,7 @@
 // outline.ts's DocumentSymbol/SymbolInformation) so the bundle does not pull the full
 // vscode-languageserver-protocol types for one shape.
 
-import { lspPositionToOffset, offsetToLspPosition, type LspPosition } from "./offsets";
+import { isCurrentPosition, lspPositionToOffset, type LspPosition } from "./offsets";
 
 export interface LspRange {
   start: LspPosition;
@@ -33,14 +33,6 @@ function toKind(kind: number | undefined): HighlightKind {
   if (kind === 2) return "read";
   if (kind === 3) return "write";
   return "text"; // missing or kind 1 (Text)
-}
-
-// True when `pos` addresses real content in the current `doc` — lspPositionToOffset clamps an
-// out-of-range position instead of failing, so round-tripping it back through offsetToLspPosition is
-// how a clamp (and therefore a stale position) is detected without re-implementing line counting.
-function isCurrentPosition(doc: string, pos: LspPosition): boolean {
-  const roundTripped = offsetToLspPosition(doc, lspPositionToOffset(doc, pos));
-  return roundTripped.line === pos.line && roundTripped.character === pos.character;
 }
 
 // Convert the raw server response + the current document into editor-ready spans (data-model.md):

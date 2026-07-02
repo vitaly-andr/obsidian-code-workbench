@@ -258,6 +258,35 @@
   border-radius: 2px;
 }
 
+/* Inline inlay hints (010): inferred types + parameter names, from the connected server, rendered as
+   small non-editable widgets — never part of the document text, so there is no text-selection/copy
+   risk (Decoration.widget content sits outside the CM6 document model). A faint accent-tinted "chip"
+   (the same --interactive-accent-hsl primitive 009's occurrence tint uses, live-verified visible on
+   both light and dark themes, at a much lower opacity since this is a passive always-on annotation,
+   not an active highlight) plus muted (--text-faint) text reads clearly as "not code". Parameter
+   hints are italicized as a light kind distinction; a server that omits kind ("other") looks like a
+   type hint. Final look is a live/theme call left for a maintainer, same as 007/009. */
+.cw-lsp-inlay {
+  font-family: var(--font-monospace);
+  font-size: 0.85em;
+  color: var(--text-faint);
+  background-color: hsla(var(--interactive-accent-hsl), 0.12);
+  border-radius: 3px;
+  padding: 0 3px;
+  pointer-events: none;
+  user-select: none;
+  white-space: pre;
+}
+.cw-lsp-inlay-parameter {
+  font-style: italic;
+}
+.cw-lsp-inlay-pad-left {
+  margin-left: 0.3em;
+}
+.cw-lsp-inlay-pad-right {
+  margin-right: 0.3em;
+}
+
 /* Settings tab: promo layout + the language-coverage table. */
 .cw-settings h3 {
   margin: 1.4em 0 0.4em;
