@@ -4,6 +4,14 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.2.0] - 2026-07-02
+
+### Added
+- Code outline panel: a sidebar view listing the active code file's classes, methods, and other
+  symbols from the connected language server, click-to-jump. It follows the active file and shows a
+  placeholder when language intelligence is off or no server is connected. Part of the opt-in
+  language-intelligence feature.
+
 ## [4.1.0] - 2026-07-02
 
 ### Added

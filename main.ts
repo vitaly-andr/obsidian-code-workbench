@@ -25,6 +25,7 @@ import {
   GIT_GRAPH_VIEW_TYPE,
   HIDDEN_FILE_VIEW_TYPE,
   HIDDEN_TREE_VIEW_TYPE,
+  OUTLINE_VIEW_TYPE,
 } from "./src/views/view-types";
 import { absoluteForVaultPath, vaultBasePath, vaultPathForAbsolute } from "./src/util/paths";
 import { IconLoader } from "./src/icons/icon-loader";
@@ -35,6 +36,7 @@ import { HiddenFileView } from "./src/views/hidden-file-view";
 import { HiddenFilesView } from "./src/views/hidden-files-view";
 import { GitGraphView } from "./src/views/git-graph-view";
 import { GitDiffView } from "./src/views/git-diff-view";
+import { OutlineView } from "./src/views/outline-view";
 import type { EditorMenuHost } from "./src/views/editor-context-menu";
 import { HiddenEntry, listHiddenFiles } from "./src/views/hidden-files";
 import { getCurrentBranch, loadBlame, loadHeadBlob, resolveRepository } from "./src/git/log";
@@ -222,6 +224,7 @@ export default class CodeWorkbenchPlugin extends Plugin {
           editorMenuHost,
           lspConfig,
           () => this.settings.indentGuides,
+          (filePath) => this.refreshOutlineFor(filePath),
         ),
     );
     try {
@@ -237,6 +240,27 @@ export default class CodeWorkbenchPlugin extends Plugin {
         }
       }
     }
+    // Document outline (008): a read-only sidebar panel over the same lazy LSP seam as lspConfig
+    // above. ensureLspController/isLanguageEnabled are the only two things the panel needs from the
+    // plugin, so it never imports src/lsp/index.ts itself (FR-009).
+    this.registerView(
+      OUTLINE_VIEW_TYPE,
+      (leaf) =>
+        new OutlineView(leaf, {
+          ensureLspController: () => this.ensureLspController(),
+          isLanguageEnabled: (language) => isLanguageEnabled(this.settings.lsp, language),
+        }),
+    );
+    this.addRibbonIcon("list-tree", "Open code outline", () => void this.openOutlinePanel());
+    this.addCommand({
+      id: "open-code-outline",
+      name: "Open code outline",
+      callback: () => void this.openOutlinePanel(),
+    });
+    // Follow the active file (US3): re-target/refresh any open outline panel on every leaf/file
+    // switch. The debounced-edit trigger is wired through CodeView's onDocumentSettled above.
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.refreshOutlineViews()));
+    this.registerEvent(this.app.workspace.on("file-open", () => this.refreshOutlineViews()));
 
     // File-type icons in the explorer. Material icons are fetched on demand (same lazy/cached
     // pattern as grammars) and painted onto the nav rows.
@@ -565,6 +589,34 @@ export default class CodeWorkbenchPlugin extends Plugin {
     if (!leaf) return;
     await leaf.setViewState({ type: GIT_GRAPH_VIEW_TYPE, active: true });
     await this.app.workspace.revealLeaf(leaf);
+  }
+
+  // Reveal the code outline panel in the left sidebar (reusing an existing one if already open).
+  async openOutlinePanel(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(OUTLINE_VIEW_TYPE);
+    if (existing.length > 0) {
+      await this.app.workspace.revealLeaf(existing[0]);
+      return;
+    }
+    const leaf = this.app.workspace.getLeftLeaf(false);
+    if (!leaf) return;
+    await leaf.setViewState({ type: OUTLINE_VIEW_TYPE, active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  // Re-target every open outline panel to the (possibly new) active file (US3).
+  private refreshOutlineViews(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(OUTLINE_VIEW_TYPE)) {
+      if (leaf.view instanceof OutlineView) void leaf.view.refresh();
+    }
+  }
+
+  // Refresh any open outline panel that is currently showing this file, after its document settles
+  // (debounced by CodeView, US3/FR-006).
+  private refreshOutlineFor(filePath: string): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(OUTLINE_VIEW_TYPE)) {
+      if (leaf.view instanceof OutlineView) leaf.view.maybeRefreshFor(filePath);
+    }
   }
 
   // Re-scan any open hidden-files panel — used when the file-icons setting changes.

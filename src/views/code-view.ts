@@ -22,6 +22,9 @@ import { treeSitterExtensions } from "../treesitter/tree-extensions";
 import { loadBlame, resolveRepository } from "../git/log";
 import type { GrammarLoader } from "../treesitter/loader";
 import type { FormatService } from "../format/format-service";
+// A dependency-free pure module (no CM/Obsidian import) — reused here for the 008 outline "jump to
+// symbol" position mapping, same cost as the other eager util imports above.
+import { lspPositionToOffset, type LspPosition } from "../lsp/offsets";
 
 // §9: renders non-markdown files with CodeMirror 6 syntax highlighting, editable (basic editing
 // only — no LSP/linter/autocomplete), using the host's CM6 singleton (R2). Reports its selection
@@ -73,6 +76,8 @@ export class CodeView extends TextFileView implements SelectionProvider {
   private lspStatusEl: HTMLElement | null = null;
   // Debounce handle for re-blaming after edits.
   private blameTimer: number | null = null;
+  // Debounce handle for the outline-refresh notification after edits.
+  private outlineTimer: number | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -83,6 +88,10 @@ export class CodeView extends TextFileView implements SelectionProvider {
     private readonly lsp?: LspEditorConfig,
     // Live read of the "Show indentation guides" setting (007). Absent => on (default).
     private readonly indentGuidesEnabled?: () => boolean,
+    // Notified (debounced, not per keystroke) after this file's document settles, so an open outline
+    // panel can refresh for it (008 US3/FR-006). Called with the file's absolute path. Absent = no
+    // outline wiring.
+    private readonly onDocumentSettled?: (filePath: string) => void,
   ) {
     super(leaf);
   }
@@ -135,6 +144,10 @@ export class CodeView extends TextFileView implements SelectionProvider {
       window.clearTimeout(this.blameTimer);
       this.blameTimer = null;
     }
+    if (this.outlineTimer !== null) {
+      window.clearTimeout(this.outlineTimer);
+      this.outlineTimer = null;
+    }
     this.editor?.destroy();
     this.editor = null;
     this.lsp?.release?.(this.lspOwner);
@@ -172,11 +185,13 @@ export class CodeView extends TextFileView implements SelectionProvider {
       // correctly. Use the contentEl's own document so it still works in a popped-out window.
       tooltips({ parent: this.contentEl.ownerDocument.body }),
       EditorView.lineWrapping,
-      // Editable; persist edits through Obsidian's save, and re-blame once the edits settle.
+      // Editable; persist edits through Obsidian's save, re-blame once the edits settle, and (if an
+      // outline panel is wired) notify it debounced so it can refresh (008 US3).
       EditorView.updateListener.of((u) => {
         if (u.docChanged) {
           this.requestSave();
           this.scheduleBlame();
+          this.scheduleOutlineRefresh();
         }
       }),
       // Inline current-line git blame (inert until refreshBlame delivers data).
@@ -348,6 +363,27 @@ export class CodeView extends TextFileView implements SelectionProvider {
       this.blameTimer = null;
       if (this.editor) void this.refreshBlame(this.editor);
     }, 1200);
+  }
+
+  // Notify (debounced, not per keystroke) that this file's document settled, so an open outline
+  // panel can refresh for it (008 US3/FR-006). Same window-timer debounce style as scheduleBlame.
+  private scheduleOutlineRefresh(): void {
+    if (!this.onDocumentSettled || !this.file) return;
+    if (this.outlineTimer !== null) window.clearTimeout(this.outlineTimer);
+    this.outlineTimer = window.setTimeout(() => {
+      this.outlineTimer = null;
+      const abs = this.file ? absoluteForVaultPath(this.app, this.file.path) : null;
+      if (abs) this.onDocumentSettled?.(abs);
+    }, 1200);
+  }
+
+  // Move the cursor to a document position and scroll it into view (008 outline "go to symbol").
+  // Reuses the editor already open for this file — no new navigation path, no file write.
+  revealPosition(pos: LspPosition): void {
+    if (!this.editor) return;
+    const offset = lspPositionToOffset(this.editor.state.doc.toString(), pos);
+    this.editor.dispatch({ selection: { anchor: offset }, scrollIntoView: true });
+    this.editor.focus();
   }
 
   getSelectionPayload(): SelectionPayload | null {

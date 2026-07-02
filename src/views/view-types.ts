@@ -12,3 +12,5 @@ export const HIDDEN_TREE_VIEW_TYPE = "code-workbench-hidden-tree";
 export const GIT_GRAPH_VIEW_TYPE = "code-workbench-git-graph";
 // Read-only side-by-side diff of a file at a commit (opened from the git graph).
 export const GIT_DIFF_VIEW_TYPE = "code-workbench-git-diff";
+// Sidebar panel listing the active code file's symbols from the connected language server.
+export const OUTLINE_VIEW_TYPE = "code-workbench-outline";

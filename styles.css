@@ -384,6 +384,26 @@
   transform: rotate(90deg);
 }
 
+/* Code outline panel (sidebar, 008): rendered with Obsidian's own tree-item classes so nesting
+   indentation matches the theme with no custom layout rules; we only style the kind badge + the
+   clickable row's hover/font, matching the tree-item conventions the theme already provides. */
+.cw-outline .tree-item-self.cw-outline-row {
+  align-items: center;
+  gap: 6px;
+}
+.cw-outline-kind {
+  flex: 0 0 auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.cw-outline-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Editable hidden-file view: let the CodeMirror editor fill the leaf. */
 .cw-hidden-file {
   height: 100%;

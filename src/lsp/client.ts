@@ -171,6 +171,15 @@ export class SessionManager {
     return this.sessions.get(key);
   }
 
+  // Find the session that already has this file URI open (didOpen sent) — used by read-only queries
+  // (e.g. documentSymbols, 008) that must not start a session of their own.
+  findByOpenDoc(uri: string): ServerSession | undefined {
+    for (const session of this.sessions.values()) {
+      if (session.openDocs.has(uri)) return session;
+    }
+    return undefined;
+  }
+
   // Return the existing session for the server's (language, projectRoot), or create + start one.
   getOrCreate(server: DiscoveredServer): ServerSession {
     const key = sessionKey(server.language, server.projectRoot);

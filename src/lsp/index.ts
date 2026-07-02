@@ -28,11 +28,19 @@ import { DiagnosticsBridge } from "./diagnostics-bridge";
 import { setDiagnosticsProvider } from "../tools/diagnostics";
 import { isLanguageEnabled, type LspSettings } from "./settings";
 import { scanInstalledServers, type ScanResult } from "./scan";
+import type { DocumentSymbolResponse } from "./outline";
 
 export type { LspSettings } from "./settings";
 export { buildSessionExtensions, ALL_FEATURES, type LspFeatures } from "./extensions";
 export type { ScanResult, DetectedServer, NotDetectedLanguage } from "./scan";
 export { invalidateEnvironmentCache } from "./env";
+export { mapSymbols } from "./outline";
+export type {
+  OutlineSymbol,
+  DocumentSymbolResponse,
+  LspDocumentSymbol,
+  LspSymbolInformation,
+} from "./outline";
 
 export interface ResolveInput {
   // Absolute path to the open file.
@@ -194,6 +202,29 @@ export class LspController {
     const env = await (this.deps.resolveEnv ?? resolveEnvironment)();
     const fileExists = this.deps.fileExists ?? existsSync;
     return scanInstalledServers(env, { fileExists, settings: this.deps.settings() });
+  }
+
+  // Document outline (008). Read-only: finds the session that already has this file open (the editor
+  // sent didOpen when it attached) and, if the server advertises documentSymbolProvider, sends
+  // textDocument/documentSymbol on that existing connection. No uriOwners claim, no status listener,
+  // no session start — a disabled feature / no open session / a not-capable or disconnected server
+  // all simply return null (the panel shows its placeholder).
+  async documentSymbols(filePath: string): Promise<DocumentSymbolResponse | null> {
+    const uri = toFileUri(filePath);
+    const session = this.sessions.findByOpenDoc(uri);
+    if (!session) return null;
+    // See the resolve() cast note above: in production the session's client IS an LSPClient.
+    const client = session.lspClient as unknown as LSPClient;
+    const caps = client.serverCapabilities as { documentSymbolProvider?: unknown } | null;
+    if (!client.connected || !caps?.documentSymbolProvider) return null;
+    try {
+      return await client.request<{ textDocument: { uri: string } }, DocumentSymbolResponse | null>(
+        "textDocument/documentSymbol",
+        { textDocument: { uri } },
+      );
+    } catch {
+      return null; // disconnected / timed out
+    }
   }
 
   // Build the CM6 editor extension for an attached file, wiring pull-model diagnostics (ruby-lsp et al.)
