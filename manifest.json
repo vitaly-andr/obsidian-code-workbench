@@ -1,7 +1,7 @@
 {
   "id": "code-workbench",
   "name": "Code Workbench",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "minAppVersion": "1.7.2",
   "description": "Let Claude maintain your vault with edits you approve, plus a real code editor: highlighting, indentation guides, diagnostics, formatting, language servers (completion, hover, go-to-def), diffs, git review, and blame for 50+ languages.",
   "author": "Vitaly Andrianov",

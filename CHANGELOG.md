@@ -4,6 +4,14 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.3.0] - 2026-07-02
+
+### Added
+- Highlight occurrences of the symbol under the cursor, from the language server: placing the cursor
+  on a variable, method, or type subtly highlights every other place it appears in the file, with a
+  distinct tint for the occurrence where it is assigned/defined. Part of the opt-in
+  language-intelligence feature.
+
 ## [4.2.0] - 2026-07-02
 
 ### Added

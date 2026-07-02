@@ -244,6 +244,20 @@
 .cm-ts-punctuation { color: var(--code-punctuation); }
 .cm-ts-variable { color: var(--code-normal, var(--text-normal)); }
 
+/* Document-highlight occurrences (009): a translucent accent background behind every occurrence of
+   the symbol under the cursor. Uses the theme accent at low opacity (via --interactive-accent-hsl) so
+   it stays clearly visible on both light and dark themes without obscuring the glyphs. Write
+   occurrences (an assignment/definition) get the stronger tint; reads — and servers that do not
+   classify occurrences — share the lighter one. */
+.cw-lsp-occurrence {
+  background-color: hsla(var(--interactive-accent-hsl), 0.3);
+  border-radius: 2px;
+}
+.cw-lsp-occurrence-write {
+  background-color: hsla(var(--interactive-accent-hsl), 0.55);
+  border-radius: 2px;
+}
+
 /* Settings tab: promo layout + the language-coverage table. */
 .cw-settings h3 {
   margin: 1.4em 0 0.4em;

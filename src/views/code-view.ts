@@ -231,10 +231,8 @@ export class CodeView extends TextFileView implements SelectionProvider {
         // The pull-diagnostics linter ran once at mount, before the server finished connecting (it
         // returns nothing until `diagnosticProvider` is known). Re-run it the moment the session is
         // ready, so diagnostics appear without the user having to make an edit first.
-        // Cast: @codemirror/lint resolves a separate nested @codemirror/view type at compile time, but
-        // CM6 is the external host singleton at runtime (one EditorView), so this is sound.
         if (status.state === "ready" && this.editor) {
-          forceLinting(this.editor as unknown as Parameters<typeof forceLinting>[0]);
+          forceLinting(this.editor);
         }
       },
     });
