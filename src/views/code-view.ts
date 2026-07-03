@@ -6,6 +6,7 @@ import { Compartment, EditorState, Extension } from "@codemirror/state";
 import { EditorView, highlightActiveLine, keymap, lineNumbers, tooltips } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { forceLinting } from "@codemirror/lint";
+import { foldAll as cmFoldAll, unfoldAll as cmUnfoldAll } from "@codemirror/language";
 import { SelectionPayload } from "../context";
 import { SelectionProvider } from "../tools/selection";
 import { showEditorContextMenu } from "./editor-context-menu";
@@ -382,6 +383,17 @@ export class CodeView extends TextFileView implements SelectionProvider {
     const offset = lspPositionToOffset(this.editor.state.doc.toString(), pos);
     this.editor.dispatch({ selection: { anchor: offset }, scrollIntoView: true });
     this.editor.focus();
+  }
+
+  // Fold/unfold every foldable region at once (012 US2), for a discoverable Obsidian command atop
+  // foldKeymap's own bindings. cmFoldAll/cmUnfoldAll are CM6's own commands (@codemirror/language) —
+  // a harmless no-op when nothing is foldable (folding off, or no server ranges yet).
+  foldAll(): void {
+    if (this.editor) cmFoldAll(this.editor);
+  }
+
+  unfoldAll(): void {
+    if (this.editor) cmUnfoldAll(this.editor);
   }
 
   getSelectionPayload(): SelectionPayload | null {

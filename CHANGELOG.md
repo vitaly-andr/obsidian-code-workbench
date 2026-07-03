@@ -4,6 +4,21 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.6.0] - 2026-07-03
+
+### Added
+- Code folding from the language server: a fold gutter next to the line numbers shows the functions,
+  blocks, and import groups the server reports; click a marker (or use the fold keys) to collapse a
+  region to one line, and fold-all/unfold-all commands to do it for the whole file. On by default with
+  a "Code folding" setting to turn it off. Part of the opt-in language-intelligence feature.
+- A copy button next to each install command in the "Detected language servers" settings, so you can
+  copy the command for a not-installed server instead of retyping it.
+
+### Fixed
+- Reopening or switching code files no longer crashes the language-server connection with a "multiple
+  views on the same file" error. The editor now reuses the open document cleanly, which also clears the
+  follow-on position errors some servers reported after an edit.
+
 ## [4.5.0] - 2026-07-03
 
 ### Added

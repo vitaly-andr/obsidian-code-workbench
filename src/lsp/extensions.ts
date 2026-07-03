@@ -20,7 +20,7 @@ import {
   WidgetType,
   keymap,
 } from "@codemirror/view";
-import { Prec, type Extension } from "@codemirror/state";
+import { Prec, StateEffect, StateField, type EditorState, type Extension } from "@codemirror/state";
 import {
   LSPClient,
   type LSPClientExtension,
@@ -31,12 +31,14 @@ import {
   findReferencesKeymap,
   serverDiagnostics,
 } from "@codemirror/lsp-client";
+import { codeFolding, foldGutter, foldKeymap, foldService } from "@codemirror/language";
 import type { LspDiagnostic } from "./diagnostics-bridge";
 import { linter, type Diagnostic as CmDiagnostic } from "@codemirror/lint";
 import { lspPositionToOffset, offsetToLspPosition, type LspPosition } from "./offsets";
 import { mapHighlights, type HighlightKind, type LspDocumentHighlight } from "./highlight";
 import { mapInlayHints, type InlayHintKind, type LspInlayHint } from "./inlay";
 import { decodeSemanticTokens, type SemanticSpan, type SemanticTokensLegend } from "./semantic-tokens";
+import { mapFoldingRanges, type LspFoldRange, type LspFoldingRange } from "./folding";
 
 // Which v1 features to wire. All default on; the per-US tasks enable them incrementally. Rename and
 // formatting are intentionally absent — they mutate files and are post-v1 (US5/US6), gated behind the
@@ -50,6 +52,7 @@ export interface LspFeatures {
   documentHighlight: boolean; // 009: occurrences of the symbol under the cursor
   inlayHint: boolean; // 010: inline inferred types + parameter names
   semanticTokens: boolean; // 011: server-driven token colors layered over tree-sitter
+  folding: boolean; // 012: fold gutter + fold/unfold from the server's structural regions
 }
 
 export const ALL_FEATURES: LspFeatures = {
@@ -61,6 +64,7 @@ export const ALL_FEATURES: LspFeatures = {
   documentHighlight: true,
   inlayHint: true,
   semanticTokens: true,
+  folding: true,
 };
 
 // Client-level extensions, passed to `new LSPClient({ extensions })`. serverDiagnostics() advertises
@@ -525,9 +529,135 @@ export function semanticTokens(client: LSPClient, uri: string): Extension {
   );
 }
 
+// Debounce delay for a foldingRange re-request after an edit (FR-003) — same as the other 009-011
+// editor-layer debounces.
+const FOLDING_DEBOUNCE_MS = 200;
+
+// Replaces the fold-ranges field's contents (R2: a StateEffect the requesting ViewPlugin dispatches
+// when a foldingRange response arrives). Module-level, like the field below — one definition shared
+// by every attached file; each EditorState holds its own field *value*.
+const setFoldRanges = StateEffect.define<readonly LspFoldRange[]>();
+
+// The server's current fold ranges for this editor, replaced wholesale on each response (v1 always
+// requests the full set — no incremental diffing). foldService (below) reads this field per line.
+const foldRangesField = StateField.define<readonly LspFoldRange[]>({
+  create: () => [],
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setFoldRanges)) return effect.value;
+    }
+    return value;
+  },
+});
+
+// foldGutter()/the fold commands both consult this per line; a line "begins" a range when the range's
+// `from` (already computed as end-of-startLine or startCharacter, per folding.ts) falls within it.
+function lspFoldService(
+  state: EditorState,
+  lineStart: number,
+  lineEnd: number,
+): { from: number; to: number } | null {
+  for (const range of state.field(foldRangesField)) {
+    if (range.from >= lineStart && range.from <= lineEnd) return { from: range.from, to: range.to };
+  }
+  return null;
+}
+
+// Requests textDocument/foldingRange and keeps foldRangesField up to date — the read half of the
+// folding extension. Same shape as DocumentHighlighter/InlayHinter/SemanticTokenizer (capability gate,
+// client.sync() before requesting, debounce + generation-guard) but this plugin renders nothing itself
+// (no `decorations`); it only dispatches a StateEffect that foldGutter()/foldService (via the field
+// above) pick up. Nothing is folded automatically (FR-005) — this only supplies candidates for the
+// reader to fold via the gutter marker or the fold keys.
+class FoldingRequester {
+  private timer: number | null = null;
+  // Bumped on every request; a response is applied only if it is still the latest (drops a stale
+  // result from a superseded doc state, contract's generation-counter requirement).
+  private generation = 0;
+
+  constructor(
+    private readonly view: EditorView,
+    private readonly client: LSPClient,
+    private readonly uri: string,
+  ) {
+    this.schedule();
+  }
+
+  update(u: ViewUpdate): void {
+    if (u.docChanged) this.schedule();
+  }
+
+  destroy(): void {
+    if (this.timer !== null) window.clearTimeout(this.timer);
+  }
+
+  private schedule(): void {
+    if (this.timer !== null) window.clearTimeout(this.timer);
+    this.timer = window.setTimeout(() => {
+      this.timer = null;
+      void this.run();
+    }, FOLDING_DEBOUNCE_MS);
+  }
+
+  private async run(): Promise<void> {
+    const gen = ++this.generation;
+    // serverCapabilities is typed via vscode-languageserver-protocol, which this file avoids
+    // depending on; narrow to the one field read here, same convention as pullDiagnostics.
+    const caps = this.client.serverCapabilities as { foldingRangeProvider?: unknown } | null;
+    if (!caps?.foldingRangeProvider) return this.clear();
+    this.client.sync(); // flush pending didChange so the server sees the current text (pullDiagnostics precedent)
+    let raw: LspFoldingRange[] | null;
+    try {
+      raw = await this.client.request<{ textDocument: { uri: string } }, LspFoldingRange[] | null>(
+        "textDocument/foldingRange",
+        { textDocument: { uri: this.uri } },
+      );
+    } catch {
+      raw = null; // disconnected / timed out — clear rather than keep stale ranges
+    }
+    if (gen !== this.generation) return; // the doc moved on before this resolved
+    if (!raw || raw.length === 0) return this.clear();
+    const ranges = mapFoldingRanges(raw, this.view.state.doc.toString());
+    this.replace(ranges);
+  }
+
+  private replace(ranges: readonly LspFoldRange[]): void {
+    this.view.dispatch({ effects: setFoldRanges.of(ranges) });
+  }
+
+  private clear(): void {
+    if (this.view.state.field(foldRangesField).length === 0) return; // avoid a needless empty dispatch
+    this.replace([]);
+  }
+}
+
+// Fold gutter + fold/unfold + fold-all/unfold-all, fed by the server's structural regions (012).
+// Read-only: sends only textDocument/foldingRange, never a file-modifying request (FR-008). Built on
+// CodeMirror's own folding (codeFolding/foldGutter/foldKeymap, host-provided @codemirror/language) —
+// unlike 009/010/011 this supplies ranges through foldService + a state field, not decorations; the
+// code editor has no folding today, so this adds it (not a refinement of an existing layer).
+export function lspFolding(client: LSPClient, uri: string): Extension {
+  return [
+    foldRangesField,
+    codeFolding(),
+    // `foldingChanged` is load-bearing: foldGutter only rebuilds its markers on its own triggers
+    // (doc/viewport/foldState/syntaxTree changes), NOT when our foldRangesField updates. The server's
+    // ranges arrive asynchronously (after the first foldingRange response), so without this the gutter
+    // is built while the field is still empty and never refreshes — the markers only appear on the next
+    // unrelated scroll/edit. Signalling the field swap here makes them appear as soon as the ranges land.
+    foldGutter({
+      foldingChanged: (update) =>
+        update.startState.field(foldRangesField) !== update.state.field(foldRangesField),
+    }),
+    keymap.of(foldKeymap),
+    foldService.of(lspFoldService),
+    ViewPlugin.define((view) => new FoldingRequester(view, client, uri)),
+  ];
+}
+
 // The editor extension set for one connected file. `client.plugin(uri, languageId)` wires the file to
 // the server (didOpen/didChange/didClose, push diagnostics display) and pullDiagnostics adds the LSP
-// 3.17 pull path. The rest are the read/navigate features (US2–US4, 009, 010, 011).
+// 3.17 pull path. The rest are the read/navigate features (US2–US4, 009, 010, 011, 012).
 export function buildSessionExtensions(
   client: LSPClient,
   uri: string,
@@ -547,5 +677,6 @@ export function buildSessionExtensions(
   if (features.documentHighlight) ext.push(documentHighlights(client, uri));
   if (features.inlayHint) ext.push(inlayHints(client, uri));
   if (features.semanticTokens) ext.push(semanticTokens(client, uri));
+  if (features.folding) ext.push(lspFolding(client, uri));
   return ext;
 }

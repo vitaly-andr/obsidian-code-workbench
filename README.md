@@ -30,6 +30,7 @@
   - Every occurrence of the symbol under the cursor, highlighted.
   - Inline inlay hints — inferred types and parameter names (toggle in settings).
   - Semantic highlighting — code colored by meaning, not just syntax (toggle in settings).
+  - Code folding — collapse functions, blocks, and import groups from a fold gutter (toggle in settings).
   - The same diagnostics reach Claude, for an edit → verify → fix loop.
 - **Accept or reject Claude's edits.** A proposed change opens as a side-by-side diff. Keep it or reject it, and edit the proposed side first if you want. Nothing is written until you keep it.
 - **Works with any model.** It speaks the Claude Code CLI protocol, not a model API, so it runs with Claude, Kimi K2, DeepSeek, GLM, or any Anthropic-compatible endpoint you use through the CLI.

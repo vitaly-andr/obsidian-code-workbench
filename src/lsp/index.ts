@@ -21,6 +21,7 @@ import { toFileUri } from "../util/paths";
 import { lspLanguageId } from "../util/languages";
 import { SessionManager, type ServerSession, type SessionState, type TransportHooks } from "./client";
 import { createTransport } from "./transport";
+import { ReopenTolerantWorkspace } from "./workspace";
 import { discoverServer, installHintFor, type DiscoveredServer, type ServerOrigin } from "./discovery";
 import { resolveEnvironment, type ResolvedEnvironment } from "./env";
 import { lspClientExtensions, buildSessionExtensions, ALL_FEATURES } from "./extensions";
@@ -110,7 +111,13 @@ export class LspController {
     const makeClient =
       deps.makeClient ??
       ((server: DiscoveredServer) =>
-        new LSPClient({ rootUri: toFileUri(server.projectRoot), extensions: lspClientExtensions(record) }));
+        new LSPClient({
+          rootUri: toFileUri(server.projectRoot),
+          // Tolerate re-opening a still-open file (reopen / async re-attach) instead of the
+          // DefaultWorkspace "multiple views" crash + document desync. See workspace.ts.
+          workspace: (client) => new ReopenTolerantWorkspace(client),
+          extensions: lspClientExtensions(record),
+        }));
     const makeTransport =
       deps.makeTransport ??
       ((server: DiscoveredServer, hooks: TransportHooks) =>
@@ -230,13 +237,14 @@ export class LspController {
   // Build the CM6 editor extension for an attached file, wiring pull-model diagnostics (ruby-lsp et al.)
   // into the same bridge the push path feeds — so the editor AND the agent getDiagnostics see them.
   buildEditorExtension(attached: Extract<AttachResult, { kind: "attached" }>): Extension {
-    // Inlay hints (010) and semantic highlighting (011) are gated by their own settings; everything
-    // else follows the feature enable.
+    // Inlay hints (010), semantic highlighting (011), and code folding (012) are each gated by their
+    // own setting; everything else follows the feature enable.
     const settings = this.deps.settings();
     const features = {
       ...ALL_FEATURES,
       inlayHint: settings.inlayHints !== false,
       semanticTokens: settings.semanticTokens !== false,
+      folding: settings.folding !== false,
     };
     return buildSessionExtensions(
       attached.client,

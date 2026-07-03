@@ -30,6 +30,9 @@ export interface LspSettings {
   // true; absent → on. Semantic colors can differ from tree-sitter's, so this is a dedicated off
   // switch (not the whole LSP).
   semanticTokens: boolean;
+  // Show a fold gutter driven by the server's structural regions (012). Default true; absent → on.
+  // Some readers won't want the extra gutter, so this is a dedicated off switch (not the whole LSP).
+  folding: boolean;
 }
 
 export const DEFAULT_LSP_SETTINGS: LspSettings = {
@@ -39,6 +42,7 @@ export const DEFAULT_LSP_SETTINGS: LspSettings = {
   exposeToAgent: true,
   inlayHints: true,
   semanticTokens: true,
+  folding: true,
 };
 
 // Whether the module should do anything for a given language. The master switch gates everything;

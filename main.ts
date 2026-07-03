@@ -378,6 +378,29 @@ export default class CodeWorkbenchPlugin extends Plugin {
       },
     });
 
+    // Fold-all / unfold-all (012 US2): a discoverable command atop foldKeymap's own bindings. A
+    // harmless no-op when nothing is foldable (folding off, or no connected server yet).
+    this.addCommand({
+      id: "fold-all",
+      name: "Fold all",
+      checkCallback: (checking: boolean) => {
+        const view = this.app.workspace.getActiveViewOfType(CodeView);
+        if (!view) return false;
+        if (!checking) view.foldAll();
+        return true;
+      },
+    });
+    this.addCommand({
+      id: "unfold-all",
+      name: "Unfold all",
+      checkCallback: (checking: boolean) => {
+        const view = this.app.workspace.getActiveViewOfType(CodeView);
+        if (!view) return false;
+        if (!checking) view.unfoldAll();
+        return true;
+      },
+    });
+
     this.addCommand({
       id: "save-hidden-file",
       name: "Save hidden file",
@@ -1027,6 +1050,14 @@ function languageDisplayName(language: string): string {
   return LANGUAGE_DISPLAY_NAMES[language] ?? language.charAt(0).toUpperCase() + language.slice(1);
 }
 
+// The runnable install command inside a registry install hint, for the copy button (006). The command
+// is the first backtick-wrapped span that has arguments (a space) — e.g. `gem install ruby-lsp`; a bare
+// `binary` name like `zls` is a reference, not a command, so those hints get no copy button.
+function installCommandFrom(hint: string): string | null {
+  const match = hint.match(/`([^`]+\s[^`]+)`/);
+  return match ? match[1] : null;
+}
+
 // "on PATH" / "via a version manager" / "user-configured" (FR-010).
 function originLabel(origin: "path" | "version-manager" | "user"): string {
   if (origin === "version-manager") return "via a version manager";
@@ -1466,6 +1497,23 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
           }),
         );
 
+      // Code folding (012): a fold gutter driven by the server's structural regions. On by default;
+      // gates just this feature and re-applies to open editors on change.
+      new Setting(containerEl)
+        .setName("Code folding")
+        .setDesc(
+          "Show a fold gutter for the regions the language server reports (functions, blocks, " +
+            "import groups) so you can collapse and expand them. Depends on the server providing " +
+            "folding ranges.",
+        )
+        .addToggle((toggle) =>
+          toggle.setValue(this.plugin.settings.lsp.folding !== false).onChange(async (value) => {
+            this.plugin.settings.lsp.folding = value;
+            await this.plugin.saveData(this.plugin.settings);
+            this.plugin.refreshLspViews();
+          }),
+        );
+
       // Detected language servers (006): scan the resolved environment for installed servers on
       // section-open and list each connectable language (US1). Async — Obsidian's display() is
       // synchronous, so a "Scanning…" placeholder holds the spot (FR-008) until the scan resolves.
@@ -1526,7 +1574,23 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
           );
         if (notInstalledOpen) {
           for (const lang of result.notDetected) {
-            new Setting(scanContainer).setName(languageDisplayName(lang.language)).setDesc(lang.installHint);
+            const row = new Setting(scanContainer)
+              .setName(languageDisplayName(lang.language))
+              .setDesc(lang.installHint);
+            // Copy the install command to the clipboard (the hint's command is otherwise unselectable
+            // prose). Shown only when the hint carries a runnable command, not a bare binary name.
+            const command = installCommandFrom(lang.installHint);
+            if (command) {
+              row.addExtraButton((button) =>
+                button
+                  .setIcon("copy")
+                  .setTooltip(`Copy: ${command}`)
+                  .onClick(() => {
+                    void navigator.clipboard.writeText(command);
+                    new Notice("Install command copied");
+                  }),
+              );
+            }
           }
         }
       };
