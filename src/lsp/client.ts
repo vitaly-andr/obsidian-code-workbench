@@ -180,6 +180,12 @@ export class SessionManager {
     return undefined;
   }
 
+  // Every live session, for a read-only query that is not tied to one open file (e.g. workspaceSymbols,
+  // 013 — workspace/symbol has no single "current" session the way a per-file request does).
+  all(): readonly ServerSession[] {
+    return [...this.sessions.values()];
+  }
+
   // Return the existing session for the server's (language, projectRoot), or create + start one.
   getOrCreate(server: DiscoveredServer): ServerSession {
     const key = sessionKey(server.language, server.projectRoot);

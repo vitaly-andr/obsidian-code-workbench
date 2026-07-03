@@ -37,6 +37,7 @@ import { HiddenFilesView } from "./src/views/hidden-files-view";
 import { GitGraphView } from "./src/views/git-graph-view";
 import { GitDiffView } from "./src/views/git-diff-view";
 import { OutlineView } from "./src/views/outline-view";
+import { WorkspaceSymbolsModal } from "./src/views/workspace-symbols-modal";
 import type { EditorMenuHost } from "./src/views/editor-context-menu";
 import { HiddenEntry, listHiddenFiles } from "./src/views/hidden-files";
 import { getCurrentBranch, loadBlame, loadHeadBlob, resolveRepository } from "./src/git/log";
@@ -261,6 +262,19 @@ export default class CodeWorkbenchPlugin extends Plugin {
     // switch. The debounced-edit trigger is wired through CodeView's onDocumentSettled above.
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.refreshOutlineViews()));
     this.registerEvent(this.app.workspace.on("file-open", () => this.refreshOutlineViews()));
+
+    // Workspace symbols (013): the project-wide companion to the outline above — a command-invoked
+    // palette instead of a panel, since a search is a one-off action rather than something to keep
+    // open. Same lazy seam (ensureLspController only), no settings toggle.
+    this.addCommand({
+      id: "search-workspace-symbols",
+      name: "Search workspace symbols",
+      callback: () => {
+        new WorkspaceSymbolsModal(this.app, {
+          ensureLspController: () => this.ensureLspController(),
+        }).open();
+      },
+    });
 
     // File-type icons in the explorer. Material icons are fetched on demand (same lazy/cached
     // pattern as grammars) and painted onto the nav rows.

@@ -4,6 +4,15 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.7.0] - 2026-07-03
+
+### Added
+- Workspace symbols: a "Search workspace symbols" command opens a palette that queries every
+  connected language server project-wide, so you can jump to a class, function, or other symbol by
+  name without knowing which file it's in. Each result shows its kind and container/file so
+  same-named symbols are distinguishable. The project-wide companion to the code outline. Part of
+  the opt-in language-intelligence feature.
+
 ## [4.6.0] - 2026-07-03
 
 ### Added

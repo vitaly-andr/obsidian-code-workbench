@@ -461,6 +461,22 @@
   white-space: nowrap;
 }
 
+/* Workspace symbols palette (013): each suggestion is a kind badge + name on one line and a muted
+   container/file line below — reuses the outline's own kind/name classes above for one shared visual
+   language between the per-file and project-wide symbol lists. */
+.cw-wsym-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cw-wsym-detail {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Editable hidden-file view: let the CodeMirror editor fill the leaf. */
 .cw-hidden-file {
   height: 100%;

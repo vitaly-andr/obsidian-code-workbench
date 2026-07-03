@@ -74,7 +74,10 @@ const SYMBOL_KIND_LABELS: Record<number, string> = {
   26: "type parameter",
 };
 
-function kindLabel(kind: number): string {
+// Exported for reuse wherever a raw LSP SymbolKind needs a display label — e.g. 013's workspace-symbol
+// palette, which (per its own data-model.md) keeps `kind` numeric in the mapper and labels it only at
+// render time.
+export function kindLabel(kind: number): string {
   return SYMBOL_KIND_LABELS[kind] ?? "symbol";
 }
 

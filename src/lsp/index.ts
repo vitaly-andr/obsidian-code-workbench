@@ -30,6 +30,7 @@ import { setDiagnosticsProvider } from "../tools/diagnostics";
 import { isLanguageEnabled, type LspSettings } from "./settings";
 import { scanInstalledServers, type ScanResult } from "./scan";
 import type { DocumentSymbolResponse } from "./outline";
+import { mapWorkspaceSymbols, type LspWorkspaceSymbol, type WorkspaceSymbolItem } from "./workspace-symbols";
 
 export type { LspSettings } from "./settings";
 export { buildSessionExtensions, ALL_FEATURES, type LspFeatures } from "./extensions";
@@ -42,6 +43,7 @@ export type {
   LspDocumentSymbol,
   LspSymbolInformation,
 } from "./outline";
+export type { WorkspaceSymbolItem } from "./workspace-symbols";
 
 export interface ResolveInput {
   // Absolute path to the open file.
@@ -232,6 +234,34 @@ export class LspController {
     } catch {
       return null; // disconnected / timed out
     }
+  }
+
+  // Project-wide symbol search (013), the workspace-wide companion to documentSymbols (008). Unlike a
+  // per-file request, workspace/symbol has no single "current" session — this queries every connected
+  // session whose server advertises workspaceSymbolProvider and merges the results. No session start,
+  // no uriOwners claim: the feature disabled, or no capable connected session, simply returns `[]`
+  // (the palette reports nothing available). A session for a disabled language never exists in the
+  // first place (resolve() gates isLanguageEnabled before ever creating one), so no further
+  // per-language filtering is needed here — only the master switch is checked.
+  async workspaceSymbols(query: string): Promise<WorkspaceSymbolItem[]> {
+    if (!this.deps.settings().enabled) return [];
+    const results: WorkspaceSymbolItem[] = [];
+    for (const session of this.sessions.all()) {
+      // See the resolve() cast note above: in production the session's client IS an LSPClient.
+      const client = session.lspClient as unknown as LSPClient;
+      const caps = client.serverCapabilities as { workspaceSymbolProvider?: unknown } | null;
+      if (!client.connected || !caps?.workspaceSymbolProvider) continue;
+      try {
+        const raw = await client.request<{ query: string }, LspWorkspaceSymbol[] | null>(
+          "workspace/symbol",
+          { query },
+        );
+        results.push(...mapWorkspaceSymbols(raw));
+      } catch {
+        // disconnected / timed out — this session contributes nothing; others still can
+      }
+    }
+    return results;
   }
 
   // Build the CM6 editor extension for an attached file, wiring pull-model diagnostics (ruby-lsp et al.)

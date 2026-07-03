@@ -27,6 +27,20 @@ export function toFileUri(absPath: string): string {
   return normalized.startsWith("/") ? `file://${normalized}` : `file:///${normalized}`;
 }
 
+// Inverse of toFileUri: a file:// URI back to an absolute path (013 — a workspace/symbol result names
+// its file this way). Undoes the extra leading slash toFileUri adds for a Windows drive path
+// (file:///C:/... -> C:/...); a POSIX path's leading slash (file:///abs/path -> /abs/path) is kept.
+export function fromFileUri(uri: string): string | null {
+  if (!uri.startsWith("file://")) return null;
+  let rest = uri.slice("file://".length);
+  try {
+    rest = decodeURIComponent(rest);
+  } catch {
+    // malformed percent-encoding — use the raw (still-encoded) form rather than fail the whole lookup
+  }
+  return /^\/[A-Za-z]:\//.test(rest) ? rest.slice(1) : rest;
+}
+
 // Join the vault root with a vault-relative path → absolute path.
 export function absoluteForVaultPath(app: App, relPath: string): string | null {
   const base = vaultBasePath(app);
