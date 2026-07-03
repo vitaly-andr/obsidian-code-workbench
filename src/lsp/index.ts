@@ -264,6 +264,19 @@ export class LspController {
     return results;
   }
 
+  // Whether any connected server can answer workspace/symbol — lets the palette tell "no capable server
+  // connected" apart from "a server is connected but returned no matches for this query" (013), so an
+  // empty result is not mislabeled as "no server".
+  hasWorkspaceSymbolProvider(): boolean {
+    if (!this.deps.settings().enabled) return false;
+    for (const session of this.sessions.all()) {
+      const client = session.lspClient as unknown as LSPClient;
+      const caps = client.serverCapabilities as { workspaceSymbolProvider?: unknown } | null;
+      if (client.connected && caps?.workspaceSymbolProvider) return true;
+    }
+    return false;
+  }
+
   // Build the CM6 editor extension for an attached file, wiring pull-model diagnostics (ruby-lsp et al.)
   // into the same bridge the push path feeds — so the editor AND the agent getDiagnostics see them.
   buildEditorExtension(attached: Extract<AttachResult, { kind: "attached" }>): Extension {

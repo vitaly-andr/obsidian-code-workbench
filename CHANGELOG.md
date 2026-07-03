@@ -4,6 +4,14 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.7.1] - 2026-07-03
+
+### Fixed
+- Workspace symbols now lists only symbols in files inside your vault — results from a server's indexed
+  system headers or dependencies (which can't be opened here) no longer clutter the palette.
+- The workspace-symbols palette no longer says "No language server … is connected" when a server is
+  connected but the query has no matches; it now says "No symbols match …" in that case.
+
 ## [4.7.0] - 2026-07-03
 
 ### Added

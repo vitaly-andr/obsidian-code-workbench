@@ -47,8 +47,21 @@ export class WorkspaceSymbolsModal extends SuggestModal<WorkspaceSymbolItem> {
     if (gen !== this.generation) return []; // a newer keystroke superseded this one
     const controller = await this.host.ensureLspController();
     if (gen !== this.generation) return [];
-    const items = await controller.workspaceSymbols(query);
+    // Only symbols in files the reader can actually open — inside the vault. A language server also
+    // indexes files outside it (system headers, dependencies); those are dead-ends here (choosing one
+    // just shows the out-of-vault notice), so they are dropped rather than cluttering the list.
+    const items = (await controller.workspaceSymbols(query)).filter((item) => this.inVault(item.uri));
     if (gen !== this.generation) return [];
+    // Honest empty-state: distinguish "no capable server connected" from "a server is connected but this
+    // query has no matches" (e.g. an empty query, an as-yet-unindexed project, or a name that just isn't
+    // there) — the old text claimed "no server" for both, which reads as broken when one IS connected.
+    if (items.length === 0) {
+      this.emptyStateText = controller.hasWorkspaceSymbolProvider()
+        ? query
+          ? `No symbols match "${query}".`
+          : "Type to search project symbols."
+        : "No language server with workspace symbols is connected.";
+    }
     return items;
   }
 
@@ -59,6 +72,14 @@ export class WorkspaceSymbolsModal extends SuggestModal<WorkspaceSymbolItem> {
     main.createSpan({ cls: "cw-outline-kind", text: kindLabel(item.kind) });
     main.createSpan({ cls: "cw-outline-name", text: item.name });
     el.createDiv({ cls: "cw-wsym-detail", text: this.describeLocation(item) });
+  }
+
+  // True when the symbol's file is an openable file inside the vault (same resolve openAndReveal uses),
+  // so the list only offers symbols the reader can actually navigate to.
+  private inVault(uri: string): boolean {
+    const abs = fromFileUri(uri);
+    const rel = abs !== null ? vaultPathForAbsolute(this.app, abs) : null;
+    return rel !== null && this.app.vault.getAbstractFileByPath(rel) instanceof TFile;
   }
 
   // containerName + file basename, so same-named symbols are distinguishable (FR-004); degrades to
