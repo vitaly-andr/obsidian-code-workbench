@@ -26,6 +26,10 @@ export interface LspSettings {
   // Render the server's inlay hints (010) inline in the editor. Default true; absent → on. They add
   // visual noise for some, so this gates just the inlay-hint feature (not the whole LSP).
   inlayHints: boolean;
+  // Recolor tokens by the server's semantic classification (011), layered over tree-sitter. Default
+  // true; absent → on. Semantic colors can differ from tree-sitter's, so this is a dedicated off
+  // switch (not the whole LSP).
+  semanticTokens: boolean;
 }
 
 export const DEFAULT_LSP_SETTINGS: LspSettings = {
@@ -34,6 +38,7 @@ export const DEFAULT_LSP_SETTINGS: LspSettings = {
   customServers: {},
   exposeToAgent: true,
   inlayHints: true,
+  semanticTokens: true,
 };
 
 // Whether the module should do anything for a given language. The master switch gates everything;

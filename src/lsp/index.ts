@@ -230,8 +230,14 @@ export class LspController {
   // Build the CM6 editor extension for an attached file, wiring pull-model diagnostics (ruby-lsp et al.)
   // into the same bridge the push path feeds — so the editor AND the agent getDiagnostics see them.
   buildEditorExtension(attached: Extract<AttachResult, { kind: "attached" }>): Extension {
-    // Inlay hints (010) are gated by their own setting; everything else follows the feature enable.
-    const features = { ...ALL_FEATURES, inlayHint: this.deps.settings().inlayHints !== false };
+    // Inlay hints (010) and semantic highlighting (011) are gated by their own settings; everything
+    // else follows the feature enable.
+    const settings = this.deps.settings();
+    const features = {
+      ...ALL_FEATURES,
+      inlayHint: settings.inlayHints !== false,
+      semanticTokens: settings.semanticTokens !== false,
+    };
     return buildSessionExtensions(
       attached.client,
       attached.uri,

@@ -4,6 +4,14 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.5.0] - 2026-07-03
+
+### Added
+- Semantic highlighting from the language server: recolors code by meaning (a parameter vs. a local
+  variable, a type, a deprecated symbol) on top of the existing syntax highlighting. On by default
+  with a "Semantic highlighting" setting to turn it off. Part of the opt-in language-intelligence
+  feature.
+
 ## [4.4.0] - 2026-07-02
 
 ### Added

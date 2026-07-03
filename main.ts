@@ -1449,6 +1449,23 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
           }),
         );
 
+      // Semantic highlighting (011): recolor tokens by the server's classification, layered over
+      // tree-sitter. On by default; gates just this feature and re-applies to open editors on change.
+      new Setting(containerEl)
+        .setName("Semantic highlighting")
+        .setDesc(
+          "Recolor code by the language server's understanding of it — a parameter vs. a local " +
+            "variable, a type, a deprecated symbol — layered over the existing syntax highlighting. " +
+            "Depends on the server providing semantic tokens.",
+        )
+        .addToggle((toggle) =>
+          toggle.setValue(this.plugin.settings.lsp.semanticTokens !== false).onChange(async (value) => {
+            this.plugin.settings.lsp.semanticTokens = value;
+            await this.plugin.saveData(this.plugin.settings);
+            this.plugin.refreshLspViews();
+          }),
+        );
+
       // Detected language servers (006): scan the resolved environment for installed servers on
       // section-open and list each connectable language (US1). Async — Obsidian's display() is
       // synchronous, so a "Scanning…" placeholder holds the spot (FR-008) until the scan resolves.

@@ -287,6 +287,20 @@
   margin-right: 0.3em;
 }
 
+/* Semantic-token modifier styles (011 US2): layered alongside the type color (tree-sitter's own
+   cm-ts-* classes, reused — no separate color rules here). Deprecated is the one the contract calls
+   out explicitly; readonly/static get a light, natural distinction. Unknown modifiers get no class
+   (data-model.md "unknown -> neutral") and are simply absent here. */
+.cw-lsp-sem-deprecated {
+  text-decoration: line-through;
+}
+.cw-lsp-sem-readonly {
+  font-style: italic;
+}
+.cw-lsp-sem-static {
+  font-weight: 600;
+}
+
 /* Settings tab: promo layout + the language-coverage table. */
 .cw-settings h3 {
   margin: 1.4em 0 0.4em;

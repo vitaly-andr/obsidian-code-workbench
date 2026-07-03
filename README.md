@@ -23,7 +23,14 @@
 - **Indentation guides.** Faint vertical lines mark each indentation level in the code editor and in diffs. On by default; toggle in settings.
 - **Diagnostics:** syntax errors are underlined where they occur, for about 48 languages.
 - **One-command formatting** for about 28 languages, including JSON, XML, YAML, TOML, JavaScript, TypeScript, Python, Go, Rust, Ruby, PHP, and C/C++.
-- **Language-server intelligence (opt-in).** Turn it on and the editor connects to a language server you already have installed and adds real diagnostics, autocomplete, hover documentation, go-to-definition, and find-references — for Ruby, Python, Rust, Go, TypeScript, and about 30 more. It discovers servers and never installs them, and the same diagnostics reach Claude for an edit-verify-fix loop. A code outline panel lists the file's classes and methods from the same server, click to jump; placing the cursor on a symbol highlights its other occurrences in the file; and inferred types and parameter names show inline as the server reports them. Off by default.
+- **Language-server intelligence (opt-in).** Turn it on and the editor connects to a language server you already have installed — Ruby, Python, Rust, Go, TypeScript, and about 30 more. It discovers servers and never installs them, and is off by default. What you get:
+  - Real diagnostics, autocomplete, hover documentation, and signature help.
+  - Go-to-definition and find-references across the project.
+  - A code outline panel of the file's classes and methods — click to jump.
+  - Every occurrence of the symbol under the cursor, highlighted.
+  - Inline inlay hints — inferred types and parameter names (toggle in settings).
+  - Semantic highlighting — code colored by meaning, not just syntax (toggle in settings).
+  - The same diagnostics reach Claude, for an edit → verify → fix loop.
 - **Accept or reject Claude's edits.** A proposed change opens as a side-by-side diff. Keep it or reject it, and edit the proposed side first if you want. Nothing is written until you keep it.
 - **Works with any model.** It speaks the Claude Code CLI protocol, not a model API, so it runs with Claude, Kimi K2, DeepSeek, GLM, or any Anthropic-compatible endpoint you use through the CLI.
 - **Launch Claude in one click.** Start the CLI in your vault from the status bar or settings; it opens your terminal in the right folder.

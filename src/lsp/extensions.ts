@@ -20,7 +20,7 @@ import {
   WidgetType,
   keymap,
 } from "@codemirror/view";
-import type { Extension } from "@codemirror/state";
+import { Prec, type Extension } from "@codemirror/state";
 import {
   LSPClient,
   type LSPClientExtension,
@@ -36,6 +36,7 @@ import { linter, type Diagnostic as CmDiagnostic } from "@codemirror/lint";
 import { lspPositionToOffset, offsetToLspPosition, type LspPosition } from "./offsets";
 import { mapHighlights, type HighlightKind, type LspDocumentHighlight } from "./highlight";
 import { mapInlayHints, type InlayHintKind, type LspInlayHint } from "./inlay";
+import { decodeSemanticTokens, type SemanticSpan, type SemanticTokensLegend } from "./semantic-tokens";
 
 // Which v1 features to wire. All default on; the per-US tasks enable them incrementally. Rename and
 // formatting are intentionally absent — they mutate files and are post-v1 (US5/US6), gated behind the
@@ -48,6 +49,7 @@ export interface LspFeatures {
   references: boolean; // US4
   documentHighlight: boolean; // 009: occurrences of the symbol under the cursor
   inlayHint: boolean; // 010: inline inferred types + parameter names
+  semanticTokens: boolean; // 011: server-driven token colors layered over tree-sitter
 }
 
 export const ALL_FEATURES: LspFeatures = {
@@ -58,6 +60,7 @@ export const ALL_FEATURES: LspFeatures = {
   references: true,
   documentHighlight: true,
   inlayHint: true,
+  semanticTokens: true,
 };
 
 // Client-level extensions, passed to `new LSPClient({ extensions })`. serverDiagnostics() advertises
@@ -366,9 +369,165 @@ export function inlayHints(client: LSPClient, uri: string): Extension {
   });
 }
 
+// Debounce delay for a semanticTokens re-request after an edit (FR-003) — same as the other 009-011
+// editor-layer debounces (short: colors should refresh quickly, not spam the server per keystroke).
+const SEMANTIC_DEBOUNCE_MS = 200;
+
+// Semantic token type -> the tree-sitter highlighter's own CSS class (styles.css, src/treesitter/
+// tree-extensions.ts), so semantic and syntax highlighting share one palette (research.md R3) instead
+// of a second copy of the same --code-* color rules. Only LSP's standard token types are listed;
+// anything else (including a server-specific extension type) falls through to no type class — the
+// span still renders if it carries a recognized modifier, otherwise it is a no-op layered over
+// tree-sitter's own color (data-model.md's "unknown -> neutral").
+const SEMANTIC_TYPE_CLASS: Record<string, string> = {
+  namespace: "cm-ts-type",
+  type: "cm-ts-type",
+  class: "cm-ts-type",
+  enum: "cm-ts-type",
+  interface: "cm-ts-type",
+  struct: "cm-ts-type",
+  typeParameter: "cm-ts-type",
+  parameter: "cm-ts-variable",
+  variable: "cm-ts-variable",
+  property: "cm-ts-property",
+  enumMember: "cm-ts-property",
+  event: "cm-ts-property",
+  function: "cm-ts-function",
+  method: "cm-ts-function",
+  macro: "cm-ts-function",
+  decorator: "cm-ts-function",
+  keyword: "cm-ts-keyword",
+  modifier: "cm-ts-keyword",
+  comment: "cm-ts-comment",
+  string: "cm-ts-string",
+  regexp: "cm-ts-string",
+  number: "cm-ts-value",
+  operator: "cm-ts-operator",
+};
+
+// A class per active modifier (US2/FR-005) — layered alongside the type class. Unknown modifiers are
+// ignored (data-model.md), not an error.
+const SEMANTIC_MODIFIER_CLASS: Record<string, string> = {
+  deprecated: "cw-lsp-sem-deprecated",
+  readonly: "cw-lsp-sem-readonly",
+  static: "cw-lsp-sem-static",
+};
+
+// The CSS classes for one span (US1 type + US2 modifiers), or an empty array when nothing is
+// recognized — the span is then a true no-op, leaving tree-sitter's own color untouched
+// (data-model.md's "unknown -> neutral").
+function semanticMarkClasses(span: SemanticSpan): string[] {
+  const classes: string[] = [];
+  const typeClass = SEMANTIC_TYPE_CLASS[span.type];
+  if (typeClass) classes.push(typeClass);
+  for (const modifier of span.modifiers) {
+    const modifierClass = SEMANTIC_MODIFIER_CLASS[modifier];
+    if (modifierClass) classes.push(modifierClass);
+  }
+  return classes;
+}
+
+// Drives one file's semantic-token decorations, layered over (never replacing) the always-on
+// tree-sitter highlighter — same shape as DocumentHighlighter/InlayHinter (capability gate,
+// client.sync() before requesting, debounce + generation-guard) but reading the server's advertised
+// legend and decoding the LSP relative encoding (decodeSemanticTokens). v1 always requests the full
+// token set (research.md R4/R5 — simpler and correct; /range and full/delta are later optimizations).
+class SemanticTokenizer {
+  decorations: DecorationSet = Decoration.none;
+  private timer: number | null = null;
+  // Bumped on every request; a response is applied only if it is still the latest (drops a stale
+  // result from a superseded doc state, contract's generation-counter requirement).
+  private generation = 0;
+
+  constructor(
+    private readonly view: EditorView,
+    private readonly client: LSPClient,
+    private readonly uri: string,
+  ) {
+    this.schedule();
+  }
+
+  update(u: ViewUpdate): void {
+    if (u.docChanged) this.schedule();
+  }
+
+  destroy(): void {
+    if (this.timer !== null) window.clearTimeout(this.timer);
+  }
+
+  private schedule(): void {
+    if (this.timer !== null) window.clearTimeout(this.timer);
+    this.timer = window.setTimeout(() => {
+      this.timer = null;
+      void this.run();
+    }, SEMANTIC_DEBOUNCE_MS);
+  }
+
+  private async run(): Promise<void> {
+    const gen = ++this.generation;
+    // serverCapabilities is typed via vscode-languageserver-protocol, which this file avoids
+    // depending on; narrow to the one field read here, same convention as pullDiagnostics. Unlike a
+    // boolean-capable field (e.g. documentHighlightProvider), semanticTokensProvider always carries an
+    // object with a legend per the LSP spec, but the narrow cast stays defensive about a malformed one.
+    const caps = this.client.serverCapabilities as {
+      semanticTokensProvider?: { legend?: SemanticTokensLegend };
+    } | null;
+    const legend = caps?.semanticTokensProvider?.legend;
+    if (!legend?.tokenTypes || !legend.tokenModifiers) return this.clear();
+    this.client.sync(); // flush pending didChange so the server tokenizes the current text (pullDiagnostics precedent)
+    let result: { data?: number[] } | null;
+    try {
+      result = await this.client.request<{ textDocument: { uri: string } }, { data?: number[] } | null>(
+        "textDocument/semanticTokens/full",
+        { textDocument: { uri: this.uri } },
+      );
+    } catch {
+      result = null; // disconnected / timed out — clear rather than keep stale colors
+    }
+    if (gen !== this.generation) return; // the doc moved on before this resolved
+    const data = result?.data;
+    if (!data || data.length === 0) return this.clear();
+    const spans = decodeSemanticTokens(data, legend, this.view.state.doc.toString());
+    const marks = spans
+      .slice()
+      .sort((a, b) => a.from - b.from || a.to - b.to)
+      .map((span) => {
+        const classes = semanticMarkClasses(span);
+        return classes.length > 0 ? Decoration.mark({ class: classes.join(" ") }).range(span.from, span.to) : null;
+      })
+      .filter((mark) => mark !== null);
+    if (marks.length === 0) return this.clear();
+    this.decorations = Decoration.set(marks);
+    this.view.dispatch({}); // an empty transaction repaints with the new decorations
+  }
+
+  private clear(): void {
+    if (this.decorations === Decoration.none) return; // avoid a needless empty dispatch
+    this.decorations = Decoration.none;
+    this.view.dispatch({});
+  }
+}
+
+// Recolor tokens by the server's semantic classification, layered over tree-sitter (011). Read-only:
+// sends only textDocument/semanticTokens/full, never a file-modifying request (FR-007).
+//
+// Prec.highest is load-bearing, not cosmetic: CM6 renders the higher-precedence mark as the *inner*
+// span, and the inner span's `color` is what paints the glyph. The tree-sitter highlighter's plugin
+// is added earlier (code-view.ts, langLayer before lspLayer) and so is inner by default — leaving the
+// semantic marks outside it, where their `color` is overridden and the recoloring (US1/FR-005) is
+// visually inert (only modifiers, which inherit to descendant text, would show). Lifting the semantic
+// plugin above the tree-sitter layer nests it inside, so the semantic color wins the overlap.
+export function semanticTokens(client: LSPClient, uri: string): Extension {
+  return Prec.highest(
+    ViewPlugin.define((view) => new SemanticTokenizer(view, client, uri), {
+      decorations: (v) => v.decorations,
+    }),
+  );
+}
+
 // The editor extension set for one connected file. `client.plugin(uri, languageId)` wires the file to
 // the server (didOpen/didChange/didClose, push diagnostics display) and pullDiagnostics adds the LSP
-// 3.17 pull path. The rest are the read/navigate features (US2–US4, 009, 010).
+// 3.17 pull path. The rest are the read/navigate features (US2–US4, 009, 010, 011).
 export function buildSessionExtensions(
   client: LSPClient,
   uri: string,
@@ -387,5 +546,6 @@ export function buildSessionExtensions(
   if (keys.length) ext.push(keymap.of(keys));
   if (features.documentHighlight) ext.push(documentHighlights(client, uri));
   if (features.inlayHint) ext.push(inlayHints(client, uri));
+  if (features.semanticTokens) ext.push(semanticTokens(client, uri));
   return ext;
 }
