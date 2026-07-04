@@ -7,6 +7,13 @@ import { EditorView, highlightActiveLine, keymap, lineNumbers, tooltips } from "
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { forceLinting } from "@codemirror/lint";
 import { foldAll as cmFoldAll, unfoldAll as cmUnfoldAll } from "@codemirror/language";
+import {
+  jumpToDefinition,
+  jumpToDeclaration,
+  jumpToTypeDefinition,
+  jumpToImplementation,
+  findReferences,
+} from "@codemirror/lsp-client";
 import { SelectionPayload } from "../context";
 import { SelectionProvider } from "../tools/selection";
 import { showEditorContextMenu } from "./editor-context-menu";
@@ -122,7 +129,7 @@ export class CodeView extends TextFileView implements SelectionProvider {
 
   private showContextMenu(evt: MouseEvent): void {
     if (!this.editor || !this.file || !this.menuHost) return;
-    showEditorContextMenu(evt, this.editor, {
+    void showEditorContextMenu(evt, this.editor, {
       payload: () => this.getSelectionPayload(),
       absPath: absoluteForVaultPath(this.app, this.file.path),
       displayName: this.file.name,
@@ -132,6 +139,35 @@ export class CodeView extends TextFileView implements SelectionProvider {
 
   getViewData(): string {
     return this.editor ? this.editor.state.doc.toString() : this.data;
+  }
+
+  // Expose the CM6 editor for the LSP layer's cross-file navigation (Workspace.displayFile): a
+  // go-to-definition / reference jump that opens this file's view then moves the cursor to the target.
+  getEditorView(): EditorView | null {
+    return this.editor;
+  }
+
+  // Back the "Go to definition" / "Find references" commands: act on the current caret. The context
+  // menu calls the same lsp-client entry points directly (on the right-clicked symbol). No-op without
+  // an editor, or when the file has no language server / capability (jumpToDefinition self-gates).
+  goToDefinition(): void {
+    if (this.editor) jumpToDefinition(this.editor);
+  }
+
+  goToDeclaration(): void {
+    if (this.editor) jumpToDeclaration(this.editor);
+  }
+
+  goToTypeDefinition(): void {
+    if (this.editor) jumpToTypeDefinition(this.editor);
+  }
+
+  goToImplementation(): void {
+    if (this.editor) jumpToImplementation(this.editor);
+  }
+
+  findReferences(): void {
+    if (this.editor) findReferences(this.editor);
   }
 
   setViewData(data: string, _clear: boolean): void {

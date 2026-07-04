@@ -24,7 +24,7 @@
 // Code's one TextModel across splits). The single-view-per-URI guard (uriOwners in index.ts) still
 // keeps one view driving the LSP; this workspace just makes the re-open path robust instead of fatal.
 
-import { Workspace, LSPPlugin, type WorkspaceFile } from "@codemirror/lsp-client";
+import { Workspace, LSPPlugin, type LSPClient, type WorkspaceFile } from "@codemirror/lsp-client";
 import type { EditorView } from "@codemirror/view";
 import type { ChangeSet, Text } from "@codemirror/state";
 
@@ -51,6 +51,26 @@ interface FileUpdate {
 export class ReopenTolerantWorkspace extends Workspace {
   files: WorkspaceFile[] = [];
   private readonly fileVersions = new Map<string, number>();
+
+  constructor(
+    client: LSPClient,
+    // Open a file (by URI) in the vault and return its editor — injected because this module has no
+    // Obsidian `app`. Used by displayFile() to make a cross-file jump target visible.
+    private readonly openInVault?: (uri: string) => Promise<EditorView | null>,
+  ) {
+    super(client);
+  }
+
+  // Bring a jump/reference target that is not the current editor in front of the reader
+  // (Workspace.displayFile — the seam @codemirror/lsp-client's cross-file go-to-definition and the
+  // reference panel use). Return its view if it is already open, otherwise open it in the vault; the
+  // client then moves the cursor to the target range. Without this, cross-file navigation silently
+  // does nothing (the default implementation only resolves an already-open file).
+  async displayFile(uri: string): Promise<EditorView | null> {
+    const open = this.getFile(uri);
+    if (open) return open.getView();
+    return this.openInVault ? await this.openInVault(uri) : null;
+  }
 
   private nextFileVersion(uri: string): number {
     const next = (this.fileVersions.get(uri) ?? -1) + 1;

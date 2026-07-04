@@ -191,7 +191,7 @@ export class HiddenFileView extends ItemView implements SelectionProvider {
 
   private showContextMenu(evt: MouseEvent): void {
     if (!this.editor || !this.filePath) return;
-    showEditorContextMenu(evt, this.editor, {
+    void showEditorContextMenu(evt, this.editor, {
       payload: () => this.getSelectionPayload(),
       absPath: this.filePath,
       displayName: path.basename(this.filePath),

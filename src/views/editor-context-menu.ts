@@ -2,8 +2,73 @@
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
 import { Menu } from "obsidian";
-import { EditorView } from "@codemirror/view";
+import { EditorView, closeHoverTooltips } from "@codemirror/view";
+import {
+  LSPPlugin,
+  type LSPClient,
+  jumpToDefinition,
+  jumpToDeclaration,
+  jumpToTypeDefinition,
+  jumpToImplementation,
+  findReferences,
+} from "@codemirror/lsp-client";
 import type { SelectionPayload } from "../context";
+
+// The location request behind each go-to capability, used to test per-symbol relevance.
+const NAV_METHOD: Record<string, string> = {
+  definitionProvider: "textDocument/definition",
+  declarationProvider: "textDocument/declaration",
+  typeDefinitionProvider: "textDocument/typeDefinition",
+  implementationProvider: "textDocument/implementation",
+};
+
+// Which navigations to show for the symbol under the click. Capabilities are file-level (clangd
+// advertises them for the whole file), so a per-symbol query is the only way to know a jump actually
+// leads somewhere — otherwise every menu lists all of them, most dead. Returns the capability keys to
+// show; empty when the click is not on a word, no server is attached, or every query times out.
+async function relevantNavigations(
+  editor: EditorView,
+  lsp: LSPPlugin | null,
+  clickPos: number | null,
+): Promise<Set<string>> {
+  const shown = new Set<string>();
+  if (!lsp || clickPos === null || !editor.state.wordAt(clickPos)) return shown;
+  const caps = lsp.client.serverCapabilities as unknown as Record<string, unknown> | null;
+  const position = lsp.toPosition(clickPos) as { line: number; character: number };
+  const jumps = Object.keys(NAV_METHOD).filter((cap) => caps?.[cap]);
+  const hits = await Promise.all(jumps.map((cap) => navResolves(lsp.client, NAV_METHOD[cap], lsp.uri, position)));
+  jumps.forEach((cap, i) => {
+    if (hits[i]) shown.add(cap);
+  });
+  // References is worth showing once the click is a real symbol (some jump resolved) and the server
+  // offers it — enumerating references just to decide would be far more expensive than a jump probe.
+  if (shown.size > 0 && caps?.referencesProvider) shown.add("referencesProvider");
+  return shown;
+}
+
+// True when a location request returns at least one target within a short budget. A slow/cold server
+// yields false rather than stalling the menu; the action still works from the command palette.
+async function navResolves(
+  client: LSPClient,
+  method: string,
+  uri: string,
+  position: { line: number; character: number },
+): Promise<boolean> {
+  const timedOut = Symbol("timeout");
+  try {
+    const result = await Promise.race<unknown>([
+      client.request<{ textDocument: { uri: string }; position: typeof position }, unknown>(method, {
+        textDocument: { uri },
+        position,
+      }),
+      new Promise<unknown>((resolve) => window.setTimeout(() => resolve(timedOut), 250)),
+    ]);
+    if (result === timedOut) return false;
+    return Array.isArray(result) ? result.length > 0 : result != null;
+  } catch {
+    return false;
+  }
+}
 
 // What the editor context menu needs from the plugin to run its Claude/git items.
 export interface EditorMenuHost {
@@ -31,7 +96,7 @@ function electronClipboard(): { readText(): string; writeText(s: string): void }
 // those plugins. So this reproduces the standard editing actions (cut/copy/paste/select all) plus
 // our own (share selection, diff against the last commit) as a normal Obsidian menu, so a right-click
 // reads the same in those editors as everywhere else.
-export function showEditorContextMenu(
+export async function showEditorContextMenu(
   evt: MouseEvent,
   editor: EditorView,
   opts: {
@@ -40,12 +105,48 @@ export function showEditorContextMenu(
     displayName: string;
     host: EditorMenuHost;
   },
-): void {
+): Promise<void> {
+  // Suppress the native menu synchronously — the relevance queries below await, and without an early
+  // preventDefault the browser context menu would flash before ours is shown.
+  evt.preventDefault();
   const state = editor.state;
   const range = state.selection.main;
   const hasSelection = !range.empty;
   const clip = electronClipboard();
   const menu = new Menu();
+
+  // A right-click over a symbol leaves the LSP hover tooltip open, which then overlaps this menu.
+  // Dismiss it so only the menu shows.
+  editor.dispatch({ effects: closeHoverTooltips });
+
+  // Go-to-definition / find-references: the discoverable, primary entry point for these LSP actions
+  // (they are also plain commands, so a hotkey stays user-assignable — nothing is bound to a key here).
+  // Shown only when a language server is attached and advertises the capability; each acts on the symbol
+  // under the right-click, not the old caret, so the reader points and navigates.
+  const lsp = LSPPlugin.get(editor);
+  const clickPos = editor.posAtCoords({ x: evt.clientX, y: evt.clientY });
+  const relevant = await relevantNavigations(editor, lsp, clickPos);
+  const atClick = (run: (v: EditorView) => void) => () => {
+    if (clickPos !== null) editor.dispatch({ selection: { anchor: clickPos } });
+    editor.focus();
+    run(editor);
+  };
+  // Only the navigations that actually resolve for this symbol, in the conventional editor order. All
+  // are read-only jumps; rename/code-actions (writes) stay out.
+  const navItems: Array<[string, string, string, (v: EditorView) => void]> = [
+    ["definitionProvider", "Go to definition", "arrow-right-to-line", jumpToDefinition],
+    ["declarationProvider", "Go to declaration", "file-symlink", jumpToDeclaration],
+    ["typeDefinitionProvider", "Go to type definition", "shapes", jumpToTypeDefinition],
+    ["implementationProvider", "Go to implementation", "git-fork", jumpToImplementation],
+    ["referencesProvider", "Find references", "search", findReferences],
+  ];
+  let anyNav = false;
+  for (const [cap, title, icon, run] of navItems) {
+    if (!relevant.has(cap)) continue;
+    anyNav = true;
+    menu.addItem((item) => item.setTitle(title).setIcon(icon).onClick(atClick(run)));
+  }
+  if (anyNav) menu.addSeparator();
 
   menu.addItem((item) =>
     item
@@ -111,6 +212,5 @@ export function showEditorContextMenu(
         .onClick(() => opts.host.openWorkingDiff(abs, opts.displayName)),
     );
   }
-  evt.preventDefault();
   menu.showAtMouseEvent(evt);
 }

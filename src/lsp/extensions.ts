@@ -27,8 +27,6 @@ import {
   serverCompletion,
   hoverTooltips,
   signatureHelp,
-  jumpToDefinitionKeymap,
-  findReferencesKeymap,
   serverDiagnostics,
 } from "@codemirror/lsp-client";
 import { codeFolding, foldGutter, foldKeymap, foldService } from "@codemirror/language";
@@ -669,11 +667,10 @@ export function buildSessionExtensions(
   if (features.completion) ext.push(serverCompletion());
   if (features.hover) ext.push(hoverTooltips());
   if (features.signature) ext.push(signatureHelp());
-  const keys = [
-    ...(features.definition ? jumpToDefinitionKeymap : []),
-    ...(features.references ? findReferencesKeymap : []),
-  ];
-  if (keys.length) ext.push(keymap.of(keys));
+  // Go-to-definition / find-references are NOT bound to an editor keymap here — that would hardcode a
+  // hotkey the user cannot rebind. They are exposed as the editor right-click menu (primary) and as
+  // Obsidian commands with a user-assignable hotkey (see main.ts). jumpToDefinition/findReferences run
+  // against the live LSPPlugin on the view, so no per-file extension is needed for them.
   if (features.documentHighlight) ext.push(documentHighlights(client, uri));
   if (features.inlayHint) ext.push(inlayHints(client, uri));
   if (features.semanticTokens) ext.push(semanticTokens(client, uri));

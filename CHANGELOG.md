@@ -4,6 +4,30 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.8.0] - 2026-07-04
+
+### Added
+- Code navigation in the editor right-click menu: Go to definition, Go to declaration, Go to type
+  definition, Go to implementation, and Find references. The menu lists only the ones that actually
+  resolve for the symbol under the cursor, so it stays uncluttered. Each is also a command, so you can
+  assign your own hotkey in Settings → Hotkeys. Part of the opt-in language-intelligence feature.
+- Cross-file navigation: a jump that lands in another file now opens that file (in a new tab, or
+  focuses it if already open) and moves the cursor to the target. Previously these jumps only worked
+  inside the current file.
+
+### Changed
+- Go to definition and find references are no longer bound to fixed F12 / Shift-F12 keys. They are
+  commands now, so their hotkey is yours to assign (or leave unset) in Settings → Hotkeys.
+
+### Fixed
+- Language servers that build an index on startup (ruby-lsp, rust-analyzer, gopls on a large module)
+  no longer fail to attach: the request timeout that also covers the initialize handshake was too
+  short (3s) and is now 20s.
+- A hover documentation link that points to another file (for example clangd's "provided by …") now
+  opens that file in the vault instead of being blocked as a local resource.
+- The language-server hover tooltip no longer overlaps the editor right-click menu; opening the menu
+  dismisses the tooltip.
+
 ## [4.7.1] - 2026-07-03
 
 ### Fixed

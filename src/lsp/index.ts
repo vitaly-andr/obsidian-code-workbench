@@ -17,6 +17,7 @@
 import { existsSync } from "fs";
 import { LSPClient } from "@codemirror/lsp-client";
 import type { Extension } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
 import { toFileUri } from "../util/paths";
 import { lspLanguageId } from "../util/languages";
 import { SessionManager, type ServerSession, type SessionState, type TransportHooks } from "./client";
@@ -85,6 +86,10 @@ export interface ControllerDeps {
   // Map an absolute path to a vault-relative one for the agent diagnostic lines (FR-026). Falls back
   // to the absolute path when absent.
   toRelativePath?: (absPath: string) => string | null;
+  // Open a file (by its LSP file:// URI) in the vault and return its CM6 editor, so cross-file
+  // go-to-definition / find-references can display and position the target (Workspace.displayFile).
+  // Null for a file outside the vault or one that cannot be opened.
+  openFileForLsp?: (uri: string) => Promise<EditorView | null>;
   // — injectable seams for tests —
   resolveEnv?: () => Promise<ResolvedEnvironment>;
   fileExists?: (p: string) => boolean;
@@ -115,9 +120,17 @@ export class LspController {
       ((server: DiscoveredServer) =>
         new LSPClient({
           rootUri: toFileUri(server.projectRoot),
+          // @codemirror/lsp-client defaults every request — including the `initialize` handshake — to a
+          // 3s timeout. Servers that build an index on startup (ruby-lsp, rust-analyzer, gopls on a large
+          // module) routinely take longer than that to answer `initialize`, so the default aborts the
+          // connect before the server is ready ("Request timed out" on connect → the language server never
+          // attaches). 20s covers a slow first start; a genuinely hung request is rare (servers answer or
+          // the transport drops).
+          timeout: 20000,
           // Tolerate re-opening a still-open file (reopen / async re-attach) instead of the
-          // DefaultWorkspace "multiple views" crash + document desync. See workspace.ts.
-          workspace: (client) => new ReopenTolerantWorkspace(client),
+          // DefaultWorkspace "multiple views" crash + document desync; also open a cross-file jump
+          // target in the vault (displayFile). See workspace.ts.
+          workspace: (client) => new ReopenTolerantWorkspace(client, this.deps.openFileForLsp),
           extensions: lspClientExtensions(record),
         }));
     const makeTransport =

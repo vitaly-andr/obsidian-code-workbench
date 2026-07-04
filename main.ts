@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
-import { App, MarkdownView, Menu, Notice, Plugin, PluginSettingTab, Setting, TFile, setIcon } from "obsidian";
+import { App, MarkdownView, Menu, Notice, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf, setIcon } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import { randomUUID } from "crypto";
 import * as path from "path";
@@ -27,7 +27,7 @@ import {
   HIDDEN_TREE_VIEW_TYPE,
   OUTLINE_VIEW_TYPE,
 } from "./src/views/view-types";
-import { absoluteForVaultPath, vaultBasePath, vaultPathForAbsolute } from "./src/util/paths";
+import { absoluteForVaultPath, fromFileUri, vaultBasePath, vaultPathForAbsolute } from "./src/util/paths";
 import { IconLoader } from "./src/icons/icon-loader";
 import { ExplorerIcons } from "./src/icons/explorer-icons";
 import { GitDecorations } from "./src/decorations/git-decorations";
@@ -263,6 +263,19 @@ export default class CodeWorkbenchPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.refreshOutlineViews()));
     this.registerEvent(this.app.workspace.on("file-open", () => this.refreshOutlineViews()));
 
+    // LSP hover/documentation links to another file arrive as `file://` URIs (e.g. clangd's
+    // "provided by util.h"). A raw file:// navigation is blocked by Electron ("Not allowed to load
+    // local resource"), so the link looks dead. Intercept a click on such a link inside LSP-rendered
+    // content (tooltips / signature / message) and open the file in the vault instead — like
+    // go-to-definition; ordinary (http) links are left to their normal handling.
+    this.registerDomEvent(activeDocument, "click", (evt) => {
+      const el = evt.target instanceof HTMLElement ? evt.target : null;
+      const anchor = el?.closest("a[href^='file:']") as HTMLAnchorElement | null;
+      if (!anchor || !anchor.closest(".cm-tooltip, .cm-lsp-documentation, .cm-lsp-message")) return;
+      evt.preventDefault();
+      void this.openLspFileLink(anchor.getAttribute("href") ?? "");
+    });
+
     // Workspace symbols (013): the project-wide companion to the outline above — a command-invoked
     // palette instead of a panel, since a search is a one-off action rather than something to keep
     // open. Same lazy seam (ensureLspController only), no settings toggle.
@@ -415,6 +428,61 @@ export default class CodeWorkbenchPlugin extends Plugin {
       },
     });
 
+    // Go-to-definition / find-references (US4): first-class Obsidian commands — they show in the
+    // palette and their hotkey is assignable in Settings → Hotkeys (nothing is bound to a key in the
+    // editor). The primary, discoverable entry point is the editor right-click menu; these commands
+    // are the keyboard/palette path. A no-op when the file has no language server for the action.
+    this.addCommand({
+      id: "lsp-go-to-definition",
+      name: "Go to definition",
+      checkCallback: (checking: boolean) => {
+        const view = this.app.workspace.getActiveViewOfType(CodeView);
+        if (!view) return false;
+        if (!checking) view.goToDefinition();
+        return true;
+      },
+    });
+    this.addCommand({
+      id: "lsp-go-to-declaration",
+      name: "Go to declaration",
+      checkCallback: (checking: boolean) => {
+        const view = this.app.workspace.getActiveViewOfType(CodeView);
+        if (!view) return false;
+        if (!checking) view.goToDeclaration();
+        return true;
+      },
+    });
+    this.addCommand({
+      id: "lsp-go-to-type-definition",
+      name: "Go to type definition",
+      checkCallback: (checking: boolean) => {
+        const view = this.app.workspace.getActiveViewOfType(CodeView);
+        if (!view) return false;
+        if (!checking) view.goToTypeDefinition();
+        return true;
+      },
+    });
+    this.addCommand({
+      id: "lsp-go-to-implementation",
+      name: "Go to implementation",
+      checkCallback: (checking: boolean) => {
+        const view = this.app.workspace.getActiveViewOfType(CodeView);
+        if (!view) return false;
+        if (!checking) view.goToImplementation();
+        return true;
+      },
+    });
+    this.addCommand({
+      id: "lsp-find-references",
+      name: "Find references",
+      checkCallback: (checking: boolean) => {
+        const view = this.app.workspace.getActiveViewOfType(CodeView);
+        if (!view) return false;
+        if (!checking) view.findReferences();
+        return true;
+      },
+    });
+
     this.addCommand({
       id: "save-hidden-file",
       name: "Save hidden file",
@@ -490,11 +558,62 @@ export default class CodeWorkbenchPlugin extends Plugin {
           vaultRoot: () => vaultBasePath(this.app),
           notify: (message) => new Notice(message),
           toRelativePath: (absPath) => vaultPathForAbsolute(this.app, absPath),
+          // Cross-file go-to-definition / find-references: open the target file in the vault and hand
+          // the LSP client its editor to position the cursor (Workspace.displayFile). Non-destructive —
+          // does not replace the source file (see leafForLspTarget). Null for a file outside the vault.
+          openFileForLsp: async (uri: string): Promise<EditorView | null> => {
+            const abs = fromFileUri(uri);
+            const rel = abs !== null ? vaultPathForAbsolute(this.app, abs) : null;
+            const file = rel !== null ? this.app.vault.getAbstractFileByPath(rel) : null;
+            if (!(file instanceof TFile)) return null;
+            const leaf = this.leafForLspTarget(file);
+            await leaf.openFile(file);
+            void this.app.workspace.revealLeaf(leaf);
+            return leaf.view instanceof CodeView ? leaf.view.getEditorView() : null;
+          },
         }),
       );
     }
     this.lspController = await this.lspLoading;
     return this.lspController;
+  }
+
+  // Pick the leaf a cross-file LSP target (go-to-definition, reference, hover link) opens in WITHOUT
+  // clobbering the source file: reuse a tab already showing that file, otherwise a new tab. Never
+  // replaces the active editor — the reader keeps their place.
+  private leafForLspTarget(file: TFile): WorkspaceLeaf {
+    let existing: WorkspaceLeaf | null = null;
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if (!existing && leaf.view instanceof CodeView && leaf.view.file?.path === file.path) existing = leaf;
+    });
+    return existing ?? this.app.workspace.getLeaf("tab");
+  }
+
+  // Open an LSP `file://` hover/documentation link in the vault (a raw file:// nav is blocked by
+  // Electron). Same open path as cross-file go-to-definition; a trailing "#L<line>" fragment is a
+  // best-effort cursor reveal (line numbers in such fragments are 1-based).
+  private async openLspFileLink(href: string): Promise<void> {
+    if (!href) return;
+    const hash = href.indexOf("#");
+    const abs = fromFileUri(hash >= 0 ? href.slice(0, hash) : href);
+    const rel = abs !== null ? vaultPathForAbsolute(this.app, abs) : null;
+    const file = rel !== null ? this.app.vault.getAbstractFileByPath(rel) : null;
+    if (!(file instanceof TFile)) {
+      new Notice("Code Workbench: that file is outside the vault");
+      return;
+    }
+    const leaf = this.leafForLspTarget(file);
+    await leaf.openFile(file);
+    await this.app.workspace.revealLeaf(leaf);
+    const lineMatch = hash >= 0 ? href.slice(hash + 1).match(/^L(\d+)/) : null;
+    if (lineMatch && leaf.view instanceof CodeView) {
+      const pos = { line: Math.max(0, parseInt(lineMatch[1], 10) - 1), character: 0 };
+      const view = leaf.view;
+      view.revealPosition(pos);
+      window.requestAnimationFrame(() => {
+        if (leaf.view instanceof CodeView) leaf.view.revealPosition(pos);
+      });
+    }
   }
 
   // Resolve a file to its LSP editor extension (or null to stay highlighting-only). Called by the
