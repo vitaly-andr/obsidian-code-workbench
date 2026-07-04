@@ -1568,9 +1568,9 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       .setName("Editor language intelligence")
       .setDesc(
         "Opt-in. When on, the editor discovers a language server you already have installed (it never " +
-          "installs one) and adds diagnostics, completion, hover, and go-to-definition on top of " +
-          "highlighting. Off by default; nothing runs and startup is unchanged while it is off. " +
-          "Desktop-only.",
+          "installs one) and adds diagnostics, completion, hover, and code navigation (right-click to " +
+          "go to a definition or find references, across files) on top of highlighting. Off by " +
+          "default; nothing runs and startup is unchanged while it is off. Desktop-only.",
       )
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.lsp.enabled).onChange(async (value) => {

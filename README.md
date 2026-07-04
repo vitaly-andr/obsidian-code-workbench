@@ -25,7 +25,9 @@
 - **One-command formatting** for about 28 languages, including JSON, XML, YAML, TOML, JavaScript, TypeScript, Python, Go, Rust, Ruby, PHP, and C/C++.
 - **Language-server intelligence (opt-in).** Turn it on and the editor connects to a language server you already have installed — Ruby, Python, Rust, Go, TypeScript, and about 30 more. It discovers servers and never installs them, and is off by default. What you get:
   - Real diagnostics, autocomplete, hover documentation, and signature help.
-  - Go-to-definition and find-references across the project.
+  - Code navigation from the right-click menu — go to definition, declaration, type definition,
+    implementation, and find references — across files. The menu shows only the ones that lead
+    somewhere for the symbol you clicked, and each is also a command you can bind a hotkey to.
   - A code outline panel of the file's classes and methods — click to jump.
   - Every occurrence of the symbol under the cursor, highlighted.
   - Inline inlay hints — inferred types and parameter names (toggle in settings).

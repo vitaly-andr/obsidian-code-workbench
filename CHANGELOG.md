@@ -4,6 +4,13 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.8.1] - 2026-07-04
+
+### Changed
+- The README and the "Editor language intelligence" setting now describe the code-navigation menu
+  from 4.8.0 (right-click go to definition, declaration, type definition, implementation, and find
+  references, across files).
+
 ## [4.8.0] - 2026-07-04
 
 ### Added
