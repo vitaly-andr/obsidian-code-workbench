@@ -13,7 +13,7 @@ import { mapSymbols, type OutlineSymbol } from "../lsp/outline";
 import { CodeView } from "./code-view";
 import { CODE_VIEW_TYPE, OUTLINE_VIEW_TYPE } from "./view-types";
 import { grammarForExtension } from "../treesitter/registry";
-import { grammarKeyForPath } from "../util/languages";
+import { grammarKeyForPath, lspEligibleForPath } from "../util/languages";
 import { absoluteForVaultPath, vaultPathForAbsolute } from "../util/paths";
 
 // What the panel needs from the plugin, kept narrow (same shape as HiddenFilesHost) to avoid a
@@ -83,7 +83,7 @@ export class OutlineView extends ItemView {
         return this.renderPlaceholder("Open a code file to see its outline.");
       }
       const language = grammarForExtension(grammarKeyForPath(view.file.path))?.id;
-      if (!language) {
+      if (!language || !lspEligibleForPath(view.file.path)) {
         this.currentPath = null;
         return this.renderPlaceholder("No outline for this file type.");
       }

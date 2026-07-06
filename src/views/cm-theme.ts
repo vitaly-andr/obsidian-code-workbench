@@ -54,7 +54,9 @@ export function languageExtension(ext: string): Extension | null {
     case "tsx": return javascript({ typescript: true, jsx: true });
     case "py": case "pyw": case "pyi": return python();
     case "rs": return rust();
-    case "json": case "jsonc": case "json5": return json();
+    // jsonl/ndjson (one JSON document per line) reuse the JSON grammar; Lezer flags line 2+ as
+    // errors, so code-view.ts keeps them out of the Lezer diagnostics (tree-sitter parses them fine).
+    case "json": case "jsonc": case "json5": case "jsonl": case "ndjson": return json();
     // erb/astro are HTML-based; the HTML grammar gives good highlighting and (verified) doesn't
     // flag the <% %> / frontmatter as errors.
     // html-based template languages share the HTML Lezer fallback (tree-sitter, when on, is exact).
@@ -167,7 +169,7 @@ export const indentGuides = indentationMarkers({
 // File extensions routed to CodeView (markdown stays with Obsidian).
 export const CODE_VIEW_EXTENSIONS = [
   "js", "mjs", "cjs", "jsx", "ts", "tsx", "py", "pyw", "pyi", "rs",
-  "json", "jsonc", "json5", "html", "htm", "xhtml", "css", "scss", "sass", "less",
+  "json", "jsonc", "json5", "jsonl", "ndjson", "html", "htm", "xhtml", "css", "scss", "sass", "less",
   "c", "h", "cpp", "cc", "cxx", "hpp", "hh", "hxx", "go", "java", "kt", "kts",
   "scala", "sc", "cs", "dart", "m", "mm", "php", "sql", "xml", "xsd", "xsl", "plist",
   "yaml", "yml", "vue", "liquid", "wat", "wast", "sh", "bash", "zsh", "ksh",

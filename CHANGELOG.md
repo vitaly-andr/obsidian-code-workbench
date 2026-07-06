@@ -4,6 +4,13 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.8.2] - 2026-07-06
+
+### Added
+- `.jsonl` and `.ndjson` (JSON Lines) files open in the code editor with JSON highlighting. The JSON
+  language server and the single-document syntax check stay off for these files: a JSON Lines file is
+  one document per line, and both would flag everything after the first line as an error.
+
 ## [4.8.1] - 2026-07-04
 
 ### Changed

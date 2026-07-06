@@ -18,7 +18,7 @@ import { SelectionPayload } from "../context";
 import { SelectionProvider } from "../tools/selection";
 import { showEditorContextMenu } from "./editor-context-menu";
 import type { EditorMenuHost } from "./editor-context-menu";
-import { grammarKeyForPath } from "../util/languages";
+import { grammarKeyForPath, lspEligibleForPath } from "../util/languages";
 import { absoluteForVaultPath, toFileUri, vaultBasePath } from "../util/paths";
 import { CODE_VIEW_TYPE } from "./view-types";
 import { indentGuides, languageExtension, obsidianEditorTheme, obsidianHighlighting } from "./cm-theme";
@@ -255,6 +255,7 @@ export class CodeView extends TextFileView implements SelectionProvider {
   // id. The cheap `enabled` gate is checked first so a disabled feature never imports the runtime.
   private async maybeAttachLsp(view: EditorView): Promise<void> {
     if (!this.lsp || !this.file) return;
+    if (!lspEligibleForPath(this.file.path)) return; // e.g. jsonl: highlighted as JSON, no JSON server
     const language = grammarForExtension(grammarKeyForPath(this.file.path))?.id;
     if (!language || !this.lsp.enabled(language)) return;
     const filePath = absoluteForVaultPath(this.app, this.file.path);
@@ -320,10 +321,12 @@ export class CodeView extends TextFileView implements SelectionProvider {
   private lezerLayer(ext: string): Extension {
     const lang = languageExtension(ext);
     if (!lang) return [];
-    // Lezer's sass grammar misparses modern SCSS (maps, map-get, division), and HTML parsing of
-    // astro frontmatter is noisy — skip Lezer diagnostics there to avoid false errors. tree-sitter,
-    // when enabled, is accurate.
-    const noisyDiagnostics = ext === "scss" || ext === "sass" || ext === "astro";
+    // Lezer's sass grammar misparses modern SCSS (maps, map-get, division), HTML parsing of
+    // astro frontmatter is noisy, and Lezer's JSON grammar flags every JSON Lines line after the
+    // first — skip Lezer diagnostics there to avoid false errors. tree-sitter, when enabled, is
+    // accurate (its JSON grammar parses a sequence of documents).
+    const noisyDiagnostics =
+      ext === "scss" || ext === "sass" || ext === "astro" || ext === "jsonl" || ext === "ndjson";
     return noisyDiagnostics ? [lang] : [lang, syntaxDiagnostics];
   }
 

@@ -9,7 +9,7 @@ const EXT_TO_LANGUAGE: Record<string, string> = {
   ts: "typescript", tsx: "typescriptreact",
   py: "python", pyw: "python", pyi: "python",
   rs: "rust",
-  json: "json", jsonc: "json", json5: "json",
+  json: "json", jsonc: "json", json5: "json", jsonl: "json", ndjson: "json",
   html: "html", htm: "html", xhtml: "html",
   css: "css", scss: "scss", sass: "sass", less: "less",
   c: "c", h: "c",
@@ -43,6 +43,15 @@ export function languageIdForPath(path: string): string {
 export function grammarKeyForPath(path: string): string {
   if (/\.blade\.php$/i.test(path)) return "blade";
   return extensionOf(path);
+}
+
+// Extensions that borrow another language's grammar for highlighting but must not attach that
+// language's LSP server. JSON Lines is one JSON document per line: the JSON server parses the
+// file as a single document and flags everything after the first line.
+const LSP_INELIGIBLE = new Set(["jsonl", "ndjson"]);
+
+export function lspEligibleForPath(path: string): boolean {
+  return !LSP_INELIGIBLE.has(grammarKeyForPath(path));
 }
 
 export function isMarkdown(path: string): boolean {

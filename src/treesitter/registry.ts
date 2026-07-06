@@ -254,7 +254,7 @@ const EXT_TO_ID: Record<string, string> = {
   ts: "typescript", tsx: "tsx",
   py: "python", pyw: "python", pyi: "python",
   rs: "rust",
-  json: "json", jsonc: "json", json5: "json",
+  json: "json", jsonc: "json", json5: "json", jsonl: "json", ndjson: "json",
   html: "html", htm: "html", xhtml: "html",
   css: "css",
   c: "c", h: "c",

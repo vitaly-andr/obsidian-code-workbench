@@ -5,7 +5,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { promises as fs } from "fs";
 import * as os from "os";
 import * as path from "path";
-import { languageIdForPath } from "../../src/util/languages";
+import { languageIdForPath, lspEligibleForPath } from "../../src/util/languages";
 import { LockFile } from "../../src/server/lockfile";
 
 describe("languages (T032)", () => {
@@ -14,7 +14,14 @@ describe("languages (T032)", () => {
     expect(languageIdForPath("x.rs")).toBe("rust");
     expect(languageIdForPath("note.md")).toBe("markdown");
     expect(languageIdForPath("data.json")).toBe("json");
+    expect(languageIdForPath("events.jsonl")).toBe("json");
     expect(languageIdForPath("mystery.zzz")).toBe("plaintext");
+  });
+
+  it("keeps LSP off JSON Lines files while regular JSON stays eligible", () => {
+    expect(lspEligibleForPath("data.json")).toBe(true);
+    expect(lspEligibleForPath("events.jsonl")).toBe(false);
+    expect(lspEligibleForPath("stream.ndjson")).toBe(false);
   });
 });
 
