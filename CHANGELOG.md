@@ -4,6 +4,18 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.9.0] - 2026-07-18
+
+### Added
+- Run Claude Code on a Kimi subscription. In **Settings → Agent launcher**, add a Kimi backend,
+  pick a model (Kimi K3 with its 1M-token context, or a smaller tier), and paste your
+  subscription API key from the Kimi Code Console — the plugin generates the wrapper script for
+  you. The key is stored in a private `0600` file in the plugin's data folder, never in the
+  synced plugin settings.
+- The status-bar launcher left-click still starts plain Claude; right-click it (or the "Launch
+  agent backend…" command) to launch a configured backend instead. Settings also gain a launch
+  button per backend and a link to the changelog.
+
 ## [4.8.2] - 2026-07-06
 
 ### Added

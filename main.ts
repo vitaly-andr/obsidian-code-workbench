@@ -11,7 +11,10 @@ import { LockFile } from "./src/server/lockfile";
 import { IdeServer } from "./src/server/websocket-server";
 import { activeSelection } from "./src/tools/selection";
 import { error, info, warn } from "./src/util/log";
-import { launchClaude } from "./src/util/launch";
+import { launchCommand } from "./src/util/launch";
+import { CLAUDE_PROFILE, newLaunchProfileId, normalizeLaunchProfiles } from "./src/util/launch-profiles";
+import type { LaunchProfile } from "./src/util/launch-profiles";
+import { AgentBackends, BACKEND_PRESETS, seedBackendConfig } from "./src/util/agent-backends";
 import { DEMO_FILES } from "./src/util/demo-files";
 import { CODE_VIEW_EXTENSIONS, CodeView } from "./src/views/code-view";
 import { blameAnnotation, setBlame } from "./src/views/blame-annotation";
@@ -38,6 +41,7 @@ import { GitGraphView } from "./src/views/git-graph-view";
 import { GitDiffView } from "./src/views/git-diff-view";
 import { OutlineView } from "./src/views/outline-view";
 import { WorkspaceSymbolsModal } from "./src/views/workspace-symbols-modal";
+import { LaunchProfileModal } from "./src/views/launch-profile-modal";
 import type { EditorMenuHost } from "./src/views/editor-context-menu";
 import { HiddenEntry, listHiddenFiles } from "./src/views/hidden-files";
 import { getCurrentBranch, loadBlame, loadHeadBlob, resolveRepository } from "./src/git/log";
@@ -98,6 +102,10 @@ interface CodeWorkbenchSettings {
   // Opt-in editor language intelligence via discovered LSP servers (005-editor-lsp). Disabled by
   // default; the LSP runtime is lazily imported only when enabled (FR-001/FR-024).
   lsp: LspSettings;
+  // Launch profiles (016): named terminal commands for the status-bar/palette launcher. A profile
+  // is a command only — backend credentials live in the user's own wrapper scripts.
+  launchProfiles: LaunchProfile[];
+  defaultLaunchProfile: string;
 }
 
 const DEFAULT_SETTINGS: CodeWorkbenchSettings = {
@@ -110,6 +118,8 @@ const DEFAULT_SETTINGS: CodeWorkbenchSettings = {
   vaultTools: false,
   showHiddenFiles: false,
   lsp: DEFAULT_LSP_SETTINGS,
+  launchProfiles: [{ ...CLAUDE_PROFILE }],
+  defaultLaunchProfile: CLAUDE_PROFILE.id,
 };
 
 export default class CodeWorkbenchPlugin extends Plugin {
@@ -133,12 +143,34 @@ export default class CodeWorkbenchPlugin extends Plugin {
   // when the feature is off (FR-024 / SC-003).
   private lspController: LspController | null = null;
   private lspLoading: Promise<LspController> | null = null;
+  // Managed agent backends (016): writes the 0600 key JSON + 0700 wrapper script per backend.
+  backends: AgentBackends | null = null;
 
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) as Partial<CodeWorkbenchSettings>);
     // The top-level assign is shallow, so a stored partial `lsp` would drop the nested defaults
     // (perLanguage/customServers). Merge the LSP object on its own so new sub-fields keep defaults.
     this.settings.lsp = Object.assign({}, DEFAULT_LSP_SETTINGS, this.settings.lsp);
+    // Launch profiles: normalize whatever was persisted (seed on first load, drop malformed
+    // rows, repoint a dangling default) — lossless upgrade migration (016 FR-002).
+    const launchState = normalizeLaunchProfiles(this.settings.launchProfiles, this.settings.defaultLaunchProfile);
+    this.settings.launchProfiles = launchState.profiles;
+    this.settings.defaultLaunchProfile = launchState.defaultId;
+
+    // Managed backends: the wrapper scripts live in the plugin data folder. Regenerate them on
+    // load from each backend's stored JSON so a template change (or lost script) is repaired and
+    // the API key survives restarts without ever entering data.json.
+    const backendsRoot = vaultBasePath(this.app);
+    if (backendsRoot) {
+      this.backends = new AgentBackends(
+        path.join(backendsRoot, this.app.vault.configDir, "plugins", this.manifest.id),
+      );
+      for (const p of this.settings.launchProfiles) {
+        if (!p.backend) continue;
+        const cfg = await this.backends.readConfig(p.id);
+        if (cfg) await this.backends.write(p.id, cfg).catch(() => undefined);
+      }
+    }
 
     const authToken = randomUUID();
     const ctx: IdeContext = {
@@ -164,9 +196,28 @@ export default class CodeWorkbenchPlugin extends Plugin {
 
     this.statusEl = this.addStatusBarItem();
     this.statusEl.addClass("mod-clickable");
-    this.registerDomEvent(this.statusEl, "click", () => void this.runClaude());
+    this.registerDomEvent(this.statusEl, "click", () => void this.launchProfile());
+    this.registerDomEvent(this.statusEl, "contextmenu", (e) => this.showLaunchProfileMenu(e));
     this.refreshStatus();
     this.addSettingTab(new CodeWorkbenchSettingTab(this.app, this));
+
+    this.addCommand({
+      id: "launch-claude",
+      name: "Launch Claude in terminal",
+      callback: () => void this.launchProfile(),
+    });
+    this.addCommand({
+      id: "launch-backend-picker",
+      name: "Launch agent backend…",
+      callback: () => {
+        const backends = this.settings.launchProfiles.filter((p) => p.backend);
+        if (backends.length === 0) {
+          new Notice("Code Workbench: no agent backend configured — add one in settings");
+          return;
+        }
+        new LaunchProfileModal(this.app, backends, (p) => void this.launchProfile(p)).open();
+      },
+    });
 
     // Second status-bar item: the current git branch (or "no git"). Read lazily on relevant
     // events, never on a timer.
@@ -1054,31 +1105,83 @@ export default class CodeWorkbenchPlugin extends Plugin {
     });
   }
 
-  private refreshStatus(): void {
+  refreshStatus(): void {
     if (!this.statusEl) return;
     this.statusEl.setText(this.connected ? "Claude ●" : "▶ Launch Claude");
     this.statusEl.setAttr(
       "aria-label",
       this.connected
         ? `Code Workbench — ${this.statusText()}`
-        : "Code Workbench — click to run Claude in this vault",
+        : "Code Workbench — click to launch Claude in this vault; right-click for other backends",
     );
   }
 
-  // Open a terminal in the vault folder and start the Claude Code CLI. Falls back to copying the
-  // command if no terminal could be launched.
-  async runClaude(): Promise<void> {
+  // Persist a managed profile's backend into its 0600 JSON + 0700 script. The key (when given)
+  // and the chosen model live in the JSON only — never in data.json. Called on key/model change.
+  async syncBackend(profile: LaunchProfile, newKey?: string): Promise<void> {
+    if (!profile.backend || !this.backends) return;
+    const preset = BACKEND_PRESETS[profile.backend.presetId];
+    if (!preset) return;
+    const cfg = (await this.backends.readConfig(profile.id)) ?? seedBackendConfig(preset);
+    cfg.name = profile.name || preset.name;
+    cfg.model = profile.backend.model;
+    cfg.models = preset.models;
+    cfg.baseUrl = preset.baseUrl;
+    if (newKey !== undefined) cfg.authToken = newKey;
+    await this.backends.write(profile.id, cfg);
+  }
+
+  // Launch a profile's command in a terminal opened in the vault folder. Every launch entry
+  // point (status bar, context menu, palette, settings button) routes through here, so the
+  // blank-command refusal and the no-terminal fallback stay in one place.
+  async launchProfile(profile?: LaunchProfile): Promise<void> {
+    // No profile = the status-bar click: always launch the plain Claude CLI. A profile is passed
+    // only from the right-click menu / palette picker (the configured backends).
+    const p = profile ?? { ...CLAUDE_PROFILE };
+    // A managed backend launches its generated wrapper script; a plain profile its command.
+    let command: string;
+    if (p.backend) {
+      const cfg = this.backends ? await this.backends.readConfig(p.id) : null;
+      if (!cfg || !cfg.authToken.trim()) {
+        new Notice(`Code Workbench: add an API key for "${p.name || p.id}" in settings first`);
+        return;
+      }
+      command = this.backends!.scriptPath(p.id);
+    } else {
+      command = p.command.trim();
+      if (!command) {
+        new Notice(`Code Workbench: profile "${p.name || p.id}" has no command configured`);
+        return;
+      }
+    }
     const base = vaultBasePath(this.app);
     if (!base) {
       new Notice("Code Workbench: couldn't resolve the vault folder");
       return;
     }
-    const ok = await launchClaude(base);
+    const ok = await launchCommand(base, command);
     if (ok) {
-      new Notice("Code Workbench: launching Claude…");
+      new Notice(`Code Workbench: launching ${p.name || command}…`);
     } else {
-      new Notice(`Code Workbench: couldn't open a terminal. Run "claude" in ${base}`);
+      new Notice(`Code Workbench: couldn't open a terminal. Run "${command}" in ${base}`);
     }
+  }
+
+  // Right-click on the status-bar launcher: pick a configured agent backend (Kimi, …). Claude is
+  // the left-click, so it is not listed here; with no backends there is nothing to show.
+  private showLaunchProfileMenu(e: MouseEvent): void {
+    const backends = this.settings.launchProfiles.filter((p) => p.backend);
+    if (backends.length === 0) return;
+    const menu = new Menu();
+    for (const profile of backends) {
+      menu.addItem((item) =>
+        item
+          .setTitle(profile.name || profile.id)
+          .setIcon("play")
+          .onClick(() => void this.launchProfile(profile)),
+      );
+    }
+    menu.showAtMouseEvent(e);
   }
 
   // Write the bundled sample files into a folder in the current vault and open one of them.
@@ -1775,17 +1878,127 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName("Connection").setDesc(this.plugin.statusText());
 
+    new Setting(containerEl).setName("Agent launcher").setHeading();
+    const launcherDesc = containerEl.createEl("p", { cls: "setting-item-description" });
+    launcherDesc.appendText(
+      "Clicking the status-bar button launches the Claude Code CLI. Add a Kimi backend below to " +
+        "run Claude Code on a Kimi subscription instead — paste an API key and the plugin writes " +
+        "the wrapper script for you. Once added, right-click the status-bar button to launch it. " +
+        "Create a subscription API key in the ",
+    );
+    const launcherConsoleLink = launcherDesc.createEl("a", {
+      text: "Kimi Code Console",
+      href: "https://www.kimi.com/code/console",
+    });
+    launcherConsoleLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      openExternal("https://www.kimi.com/code/console");
+    });
+    launcherDesc.appendText(".");
+    const profiles = this.plugin.settings.launchProfiles;
+    // Only managed backends get an editable row — the built-in Claude profile needs no name or
+    // command field. A backend's toggle makes it the default; off means Claude is the default.
+    for (const profile of profiles) {
+      if (!profile.backend) continue;
+      const preset = BACKEND_PRESETS[profile.backend.presetId];
+      if (!preset) continue;
+      const row = new Setting(containerEl).setName(profile.name || preset.name);
+      // Model picker (human-readable names + context sizes from the preset).
+      row.addDropdown((d) => {
+        for (const [modelId, m] of Object.entries(preset.models)) {
+          d.addOption(modelId, `${m.name} — ${Math.round(m.contextTokens / 1000)}K`);
+        }
+        d.setValue(profile.backend!.model).onChange(async (value) => {
+          profile.backend!.model = value;
+          await this.plugin.saveData(this.plugin.settings);
+          await this.plugin.syncBackend(profile);
+        });
+      });
+      // API key field — the plugin saves it into the backend's 0600 JSON (never data.json).
+      row.addText((t) => {
+        t.setPlaceholder("API key");
+        t.inputEl.type = "password";
+        void this.plugin.backends?.readConfig(profile.id).then((cfg) => {
+          if (cfg?.authToken) t.setValue(cfg.authToken);
+        });
+        t.onChange(async (value) => {
+          await this.plugin.syncBackend(profile, value.trim());
+        });
+      });
+      // Launch this backend now (same as picking it from the status-bar right-click menu).
+      row.addExtraButton((b) =>
+        b
+          .setIcon("play")
+          .setTooltip("Launch this backend")
+          .onClick(() => void this.plugin.launchProfile(profile)),
+      );
+      row.addExtraButton((b) =>
+        b
+          .setIcon("trash")
+          .setTooltip("Delete backend")
+          .onClick(async () => {
+            const idx = profiles.indexOf(profile);
+            if (idx >= 0) profiles.splice(idx, 1);
+            await this.plugin.backends?.remove(profile.id);
+            await this.plugin.saveData(this.plugin.settings);
+            this.display();
+          }),
+      );
+    }
+    const backends = profiles.filter((p) => p.backend);
+    // The "Add Kimi backend" row only makes sense until one exists — after that, edit or delete
+    // the row above instead of adding a second.
+    if (backends.length === 0) {
+      const addKimi = new Setting(containerEl)
+        .setName("Add Kimi backend")
+        .setDesc("Run Claude Code on your Kimi subscription — paste the API key, no script to write.");
+      addKimi.addButton((b) =>
+        b
+          .setCta()
+          .setButtonText("Add Kimi backend")
+          .onClick(async () => {
+            const preset = BACKEND_PRESETS.kimi;
+            const id = newLaunchProfileId(profiles);
+            profiles.push({
+              id,
+              name: `Claude × ${preset.name}`,
+              command: "",
+              backend: { presetId: preset.id, model: preset.defaultModel },
+            });
+            // Seed the 0600 JSON + 0700 script now (empty key) so the files exist to fill in.
+            await this.plugin.backends?.write(id, seedBackendConfig(preset));
+            await this.plugin.saveData(this.plugin.settings);
+            this.display();
+          }),
+      );
+    }
+
     new Setting(containerEl)
-      .setName("Run Claude")
+      .setName("Launch Claude")
       .setDesc("Open a terminal in this vault folder and start the Claude Code CLI.")
       .addButton((b) =>
         b
           .setCta()
-          .setButtonText("▶ Run Claude in this vault")
+          .setButtonText("▶ Launch Claude in this vault")
           .onClick(() => {
-            void this.plugin.runClaude();
+            void this.plugin.launchProfile();
           }),
       );
+
+    // A launch button per configured backend, next to the Claude one.
+    for (const backend of backends) {
+      new Setting(containerEl)
+        .setName(`Launch ${backend.name}`)
+        .setDesc("Open a terminal in this vault folder and start Claude Code on this backend.")
+        .addButton((b) =>
+          b
+            .setCta()
+            .setButtonText(`▶ Launch ${backend.name} in this vault`)
+            .onClick(() => {
+              void this.plugin.launchProfile(backend);
+            }),
+        );
+    }
 
     const support = containerEl.createDiv({ cls: "cw-support" });
 
@@ -1819,6 +2032,15 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       .addButton((b) =>
         b.setButtonText("★ Star on GitHub").onClick(() => {
           openExternal("https://github.com/vitaly-andr/obsidian-code-workbench");
+        }),
+      );
+
+    new Setting(support)
+      .setName("Changelog")
+      .setDesc(`What changed in each release. Current version ${this.plugin.manifest.version}.`)
+      .addButton((b) =>
+        b.setButtonText("View changelog").onClick(() => {
+          openExternal("https://github.com/vitaly-andr/obsidian-code-workbench/blob/main/CHANGELOG.md");
         }),
       );
 

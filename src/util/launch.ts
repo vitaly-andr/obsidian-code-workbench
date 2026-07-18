@@ -44,28 +44,30 @@ function spawnDetached(bin: string, argv: string[], cwd?: string): Promise<boole
   });
 }
 
-// Open the platform terminal in `cwd` and start `claude`, keeping the window open afterward.
-// Returns false if no terminal could be launched, so the caller can fall back to the clipboard.
-export async function launchClaude(cwd: string): Promise<boolean> {
+// Open the platform terminal in `cwd` and start `command` (a launch-profile command such as
+// `claude` or a user wrapper script), keeping the window open afterward. Returns false if no
+// terminal could be launched, so the caller can fall back to showing the command.
+export async function launchCommand(cwd: string, command: string): Promise<boolean> {
   if (process.platform === "darwin") {
     const path = cwd.replace(/"/g, '\\"');
+    const program = command.replace(/"/g, '\\"');
     const script =
       'tell application "Terminal"\n' +
-      `  do script "cd " & quoted form of "${path}" & " && claude"\n` +
+      `  do script "cd " & quoted form of "${path}" & " && ${program}"\n` +
       "  activate\n" +
       "end tell";
     return spawnDetached("osascript", ["-e", script]);
   }
 
   if (process.platform === "win32") {
-    if (await spawnDetached("wt", ["-d", cwd, "cmd", "/k", "claude"])) return true;
-    return spawnDetached("cmd", ["/c", "start", "", "cmd", "/k", `cd /d "${cwd}" && claude`]);
+    if (await spawnDetached("wt", ["-d", cwd, "cmd", "/k", command])) return true;
+    return spawnDetached("cmd", ["/c", "start", "", "cmd", "/k", `cd /d "${cwd}" && ${command}`]);
   }
 
-  // Linux / other unix: run claude through a login shell so PATH is set, then keep a shell open
-  // so any error stays visible. The terminal inherits `cwd`, so no cd is needed.
+  // Linux / other unix: run the command through a login shell so PATH is set, then keep a shell
+  // open so any error stays visible. The terminal inherits `cwd`, so no cd is needed.
   const shell = process.env.SHELL || "bash";
-  const inner = [shell, "-l", "-c", `claude; exec ${shell} -l`];
+  const inner = [shell, "-l", "-c", `${command}; exec ${shell} -l`];
   const preferred = (process.env.TERMINAL || "").split("/").pop();
   const ordered = preferred
     ? [
