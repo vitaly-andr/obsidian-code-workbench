@@ -539,3 +539,23 @@
   font-weight: 600;
   line-height: 1;
 }
+/* Kimi backend tier → model table in the settings tab. */
+.cw-kimi-tiers {
+  width: 100%;
+  margin: 4px 0 16px;
+  border-collapse: collapse;
+  font-size: var(--font-smaller);
+}
+.cw-kimi-tiers th,
+.cw-kimi-tiers td {
+  padding: 4px 12px 4px 0;
+  text-align: left;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.cw-kimi-tiers th {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.cw-kimi-tiers tr:last-child td {
+  border-bottom: none;
+}

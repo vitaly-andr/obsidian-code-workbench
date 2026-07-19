@@ -4,6 +4,23 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.9.1] - 2026-07-19
+
+### Changed
+- The Kimi backend now maps each Claude model tier to a different Kimi model — Fable to K3 with
+  its 1M-token context, Opus to K3, Sonnet to K2.7 HighSpeed, Haiku to K2.7 — instead of pinning
+  every tier to one model chosen in settings. Switch tiers with `/model fable|opus|sonnet|haiku`
+  inside the running session. The per-backend settings row no longer has a model dropdown;
+  Settings → Agent launcher shows the tier → model mapping as a table instead.
+
+### Added
+- The `kimi-for-coding-highspeed` (K2.7 HighSpeed) model.
+
+### Fixed
+- The generated Kimi wrapper script now sets `ANTHROPIC_DEFAULT_FABLE_MODEL`, which was missing
+  before, so `/model fable` had no target on a Kimi backend. It also no longer sets
+  `CLAUDE_CODE_MAX_CONTEXT_TOKENS`, which isn't a real Claude Code variable.
+
 ## [4.9.0] - 2026-07-18
 
 ### Added

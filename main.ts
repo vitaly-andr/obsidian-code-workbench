@@ -1895,6 +1895,31 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       openExternal("https://www.kimi.com/code/console");
     });
     launcherDesc.appendText(".");
+    // No model picker in the backend row below: the Kimi preset pins fable/opus/sonnet/haiku to
+    // their own Kimi model (see BACKEND_PRESETS), and Claude Code's own `/model
+    // fable|opus|sonnet|haiku` switches between them inside the running session. Spelled out
+    // here, once, since there's no per-row UI to see it otherwise.
+    const kimiModelName = (id: string) => BACKEND_PRESETS.kimi.models[id]?.name ?? id;
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text: "Kimi backend model tiers — switch with /model inside the running session:",
+    });
+    const tierTable = containerEl.createEl("table", { cls: "cw-kimi-tiers" });
+    const tierHeader = tierTable.createEl("tr");
+    tierHeader.createEl("th", { text: "Tier" });
+    tierHeader.createEl("th", { text: "Kimi model" });
+    const tierRows: [string, string][] = [
+      ["Start", kimiModelName(BACKEND_PRESETS.kimi.defaultStartupModel)],
+      ["sonnet", kimiModelName(BACKEND_PRESETS.kimi.defaultModel)],
+      ["opus", kimiModelName(BACKEND_PRESETS.kimi.defaultOpusModel)],
+      ["haiku", kimiModelName(BACKEND_PRESETS.kimi.defaultHaikuModel)],
+      ["fable", kimiModelName(BACKEND_PRESETS.kimi.defaultFableModel)],
+    ];
+    for (const [tier, model] of tierRows) {
+      const tr = tierTable.createEl("tr");
+      tr.createEl("td", { text: tier });
+      tr.createEl("td", { text: model });
+    }
     const profiles = this.plugin.settings.launchProfiles;
     // Only managed backends get an editable row — the built-in Claude profile needs no name or
     // command field. A backend's toggle makes it the default; off means Claude is the default.
@@ -1903,17 +1928,6 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
       const preset = BACKEND_PRESETS[profile.backend.presetId];
       if (!preset) continue;
       const row = new Setting(containerEl).setName(profile.name || preset.name);
-      // Model picker (human-readable names + context sizes from the preset).
-      row.addDropdown((d) => {
-        for (const [modelId, m] of Object.entries(preset.models)) {
-          d.addOption(modelId, `${m.name} — ${Math.round(m.contextTokens / 1000)}K`);
-        }
-        d.setValue(profile.backend!.model).onChange(async (value) => {
-          profile.backend!.model = value;
-          await this.plugin.saveData(this.plugin.settings);
-          await this.plugin.syncBackend(profile);
-        });
-      });
       // API key field — the plugin saves it into the backend's 0600 JSON (never data.json).
       row.addText((t) => {
         t.setPlaceholder("API key");
