@@ -38,7 +38,7 @@
   - The same diagnostics reach Claude, for an edit → verify → fix loop.
 - **Accept or reject Claude's edits.** A proposed change opens as a side-by-side diff. Keep it or reject it, and edit the proposed side first if you want. Nothing is written until you keep it.
 - **Works with any model.** It speaks the Claude Code CLI protocol, not a model API, so it runs with Claude, Kimi K2, DeepSeek, GLM, or any Anthropic-compatible endpoint you use through the CLI.
-- **Launch Claude in one click.** Start the CLI in your vault from the status bar or settings; it opens your terminal in the right folder. Launch profiles let the same button start Claude Code against another backend (Kimi, DeepSeek, a local gateway) through your own wrapper script — see [Launch profiles](#launch-profiles).
+- **Launch Claude in one click.** Start the CLI in your vault from the status bar or settings; it opens your terminal in the right folder. Launch profiles run the same CLI on a Kimi or GLM subscription instead: paste an API key and the plugin writes the wrapper script — see [Launch profiles](#launch-profiles).
 - **Vault tools for Claude.** Turn it on to let Claude read and maintain the vault through model-callable tools (backlinks, search, frontmatter, link-preserving rename, trash delete), with every write shown for your approval. See [Vault tools for Claude](#vault-tools-for-claude).
 
 ## Git review
@@ -172,28 +172,38 @@ Claude also reads the current selection, the open notes, and the workspace root 
 
 ## Launch profiles
 
-The status-bar launcher runs whatever profile is set as the default. Out of the box there is a
-single profile, **Claude**, which starts `claude` — the button reads **▶ Launch Claude** and
+Clicking the status-bar launcher starts `claude` — the button reads **▶ Launch Claude** and
 behaves exactly as before.
 
-### Kimi (or another backend) in a few clicks
+### Kimi or GLM in a few clicks
 
-To run Claude Code on a Kimi subscription, open **Settings → Code Workbench → Agent launcher**
-and click **Add Kimi backend**. Pick a model from the dropdown (Kimi K3 with its 1M context, or a
-smaller tier) and paste your API key from the [Kimi Code Console](https://www.kimi.com/code/console).
-That is all — the plugin writes the wrapper script for you. Flip the profile's toggle to make it
-the default, and the status-bar button launches Claude Code against Kimi; keep Claude as the
-default and right-click the button (or run **Launch agent profile…**) to start Kimi on demand.
+To run the same CLI on a Kimi or GLM subscription, open **Settings → Code Workbench → Agent
+launcher** and click **Add Kimi backend** or **Add GLM backend**. Paste the API key from the
+[Kimi Code Console](https://www.kimi.com/code/console) or the
+[Z.ai API keys page](https://z.ai/manage-apikey/apikey-list) and that is all — the plugin writes
+the wrapper script for you. Right-click the status-bar button (or run **Launch agent backend…**)
+to start it; the left-click stays on plain Claude. Both backends can be configured at once.
+
+Each Claude model tier maps to a model of that provider, so `/model opus`, `/model sonnet` and
+friends keep working inside the session. Settings shows the mapping per backend:
+
+| Tier | Kimi | GLM |
+|---|---|---|
+| Start | Kimi for Coding (K2.7) | GLM-5.2 (1M context) |
+| `sonnet` | Kimi for Coding (K2.7 HighSpeed) | GLM-5.2 (1M context) |
+| `opus` | Kimi K3 (256K context) | GLM-5.2 (1M context) |
+| `haiku` | Kimi for Coding (K2.7) | GLM-4.7 (200K context) |
+| `fable` | Kimi K3 (1M context) | GLM-5.2 (1M context) |
 
 The API key is stored in a private `0600` file in the plugin's data folder, next to the generated
 script — never in the plugin's synced settings, so it is not carried by Obsidian Sync or a vault
 backup.
 
-### A plain command profile
+### Another endpoint
 
-You can also add a profile that is just a terminal command (**Add command**). Point it at any
-agent CLI or your own wrapper script; the plugin runs it in a terminal opened in the vault
-folder. This keeps all environment setup in your script and stores no secrets at all.
+For anything else, point the CLI at it yourself: a wrapper script of your own that exports
+`ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`, run from a terminal in the vault folder. The
+plugin connects to whatever Claude Code session runs there.
 
 ## Vault tools for Claude
 

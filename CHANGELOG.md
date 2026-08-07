@@ -4,6 +4,21 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.10.0] - 2026-08-07
+
+### Added
+- Run Claude Code on a GLM Coding Plan subscription. **Settings → Agent launcher** now has an
+  **Add GLM backend** button next to the Kimi one: paste the API key from the Z.ai API keys page
+  and the plugin generates the wrapper script, pointing the CLI at Z.ai's Anthropic-compatible
+  endpoint. Tier mapping follows Z.ai's own Claude Code setup — Haiku on GLM-4.7, Sonnet, Opus
+  and Fable on GLM-5.2 with its 1M-token context. As with Kimi, the key is stored in a private
+  `0600` file in the plugin's data folder, never in the plugin's synced settings.
+
+### Changed
+- Kimi and GLM backends can be configured at the same time; the settings section lists one block
+  per provider instead of allowing a single backend overall. Each block links to that provider's
+  key page and shows its tier → model table.
+
 ## [4.9.1] - 2026-07-19
 
 ### Changed

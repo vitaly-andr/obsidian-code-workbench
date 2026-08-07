@@ -24,21 +24,107 @@ class FileSystemAdapter {
   getBasePath() {
     return VAULT;
   }
+  // Enough of the adapter for the on-demand asset loaders (file icons) to decide there is
+  // nothing cached and give up quietly.
+  async exists() {
+    return false;
+  }
+  async mkdir() {}
+  async read() {
+    return "";
+  }
+  async write() {}
 }
+// Every Obsidian class the bundle subclasses has to exist here: `class X extends undefined`
+// throws while the module is still being evaluated, before onload() ever runs.
 const obsidian = {
   FileSystemAdapter,
   ItemView: class { constructor(leaf) { this.leaf = leaf; } },
   TextFileView: class { constructor(leaf) { this.leaf = leaf; } },
   MarkdownView: class {},
+  Modal: class { constructor(app) { this.app = app; } },
+  SuggestModal: class { constructor(app) { this.app = app; } },
+  FuzzySuggestModal: class { constructor(app) { this.app = app; } },
+  PluginSettingTab: class { constructor(app, plugin) { this.app = app; this.plugin = plugin; } },
+  Setting: class { constructor(containerEl) { this.containerEl = containerEl; } },
+  Menu: class {},
   TFile: class {},
+  TFolder: class {},
   WorkspaceLeaf: class {},
   Notice: class { constructor() {} },
+  setIcon: () => {},
+  normalizePath: (p) => p,
+  // The icon pack fetches over the network in Obsidian; here it stays unavailable, which the
+  // loader already treats as "no icons" rather than an error.
+  requestUrl: async () => { throw new Error("offline in smoke test"); },
   Plugin: class {
     constructor(app, manifest) { this.app = app; this.manifest = manifest; }
     registerView() {}
     registerExtensions() {}
     registerEvent() {}
+    registerEditorExtension() {}
+    registerMarkdownPostProcessor() {}
+    registerObsidianProtocolHandler() {}
+    registerDomEvent() {}
+    registerInterval() {}
+    register() {}
+    addCommand() {}
+    addSettingTab() {}
+    addStatusBarItem() { return statusBarItem(); }
+    addRibbonIcon() { return statusBarItem(); }
+    addChild(child) { return child; }
+    async loadData() { return {}; }
+    async saveData() {}
   },
+};
+
+// A stand-in for the status-bar element the plugin decorates, with the DOM helpers Obsidian adds
+// to Node (empty/createSpan/setCssStyles/…). Everything is a no-op that hands back another one:
+// this test is about the protocol, not the rendering.
+function statusBarItem() {
+  const el = {
+    style: {},
+    classList: { add() {}, remove() {}, toggle() {} },
+    empty() {},
+    detach() {},
+    remove() {},
+    addClass() {},
+    removeClass() {},
+    toggleClass() {},
+    setText() {},
+    setAttr() {},
+    setAttribute() {},
+    setCssStyles() {},
+    setCssProps() {},
+    appendText() {},
+    appendChild(child) { return child; },
+    addEventListener() {},
+    removeEventListener() {},
+    createEl: statusBarItem,
+    createDiv: statusBarItem,
+    createSpan: statusBarItem,
+    createSvg: statusBarItem,
+  };
+  return el;
+}
+
+// The bundle schedules through `window` (Obsidian's renderer globals), which Node has no notion
+// of. Only the timer surface is reachable from the paths this test drives.
+globalThis.window = {
+  setTimeout: (fn, ms) => setTimeout(fn, ms),
+  clearTimeout: (id) => clearTimeout(id),
+  setInterval: (fn, ms) => setInterval(fn, ms),
+  clearInterval: (id) => clearInterval(id),
+  requestAnimationFrame: (fn) => setTimeout(fn, 0),
+  open: () => {},
+};
+// `activeDocument` is Obsidian's per-window document (explorer decorations reach for it).
+globalThis.activeDocument = {
+  createElement: () => statusBarItem(),
+  querySelector: () => null,
+  querySelectorAll: () => [],
+  addEventListener: () => {},
+  removeEventListener: () => {},
 };
 
 const origLoad = Module._load;
@@ -49,9 +135,18 @@ Module._load = function (request, parent, isMain) {
 };
 
 const app = {
-  vault: { adapter: new FileSystemAdapter(), getAbstractFileByPath: () => null },
+  vault: {
+    adapter: new FileSystemAdapter(),
+    configDir: ".obsidian",
+    on: () => ({}),
+    getAbstractFileByPath: () => null,
+    getFiles: () => [],
+    getMarkdownFiles: () => [],
+  },
   workspace: {
     on: () => ({}),
+    // Left unfired: nothing this test asserts on waits for the layout.
+    onLayoutReady: () => {},
     getActiveViewOfType: () => null,
     getLeavesOfType: () => [],
     activeLeaf: null,

@@ -1879,54 +1879,56 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Connection").setDesc(this.plugin.statusText());
 
     new Setting(containerEl).setName("Agent launcher").setHeading();
-    const launcherDesc = containerEl.createEl("p", { cls: "setting-item-description" });
-    launcherDesc.appendText(
-      "Clicking the status-bar button launches the Claude Code CLI. Add a Kimi backend below to " +
-        "run Claude Code on a Kimi subscription instead — paste an API key and the plugin writes " +
-        "the wrapper script for you. Once added, right-click the status-bar button to launch it. " +
-        "Create a subscription API key in the ",
-    );
-    const launcherConsoleLink = launcherDesc.createEl("a", {
-      text: "Kimi Code Console",
-      href: "https://www.kimi.com/code/console",
-    });
-    launcherConsoleLink.addEventListener("click", (e) => {
-      e.preventDefault();
-      openExternal("https://www.kimi.com/code/console");
-    });
-    launcherDesc.appendText(".");
-    // No model picker in the backend row below: the Kimi preset pins fable/opus/sonnet/haiku to
-    // their own Kimi model (see BACKEND_PRESETS), and Claude Code's own `/model
-    // fable|opus|sonnet|haiku` switches between them inside the running session. Spelled out
-    // here, once, since there's no per-row UI to see it otherwise.
-    const kimiModelName = (id: string) => BACKEND_PRESETS.kimi.models[id]?.name ?? id;
     containerEl.createEl("p", {
       cls: "setting-item-description",
-      text: "Kimi backend model tiers — switch with /model inside the running session:",
+      text:
+        "Clicking the status-bar button launches the Claude Code CLI. Add a backend below to run " +
+        "Claude Code on a Kimi or GLM subscription instead — paste an API key and the plugin " +
+        "writes the wrapper script for you. Once added, right-click the status-bar button to " +
+        "launch it.",
     });
-    const tierTable = containerEl.createEl("table", { cls: "cw-kimi-tiers" });
-    const tierHeader = tierTable.createEl("tr");
-    tierHeader.createEl("th", { text: "Tier" });
-    tierHeader.createEl("th", { text: "Kimi model" });
-    const tierRows: [string, string][] = [
-      ["Start", kimiModelName(BACKEND_PRESETS.kimi.defaultStartupModel)],
-      ["sonnet", kimiModelName(BACKEND_PRESETS.kimi.defaultModel)],
-      ["opus", kimiModelName(BACKEND_PRESETS.kimi.defaultOpusModel)],
-      ["haiku", kimiModelName(BACKEND_PRESETS.kimi.defaultHaikuModel)],
-      ["fable", kimiModelName(BACKEND_PRESETS.kimi.defaultFableModel)],
-    ];
-    for (const [tier, model] of tierRows) {
-      const tr = tierTable.createEl("tr");
-      tr.createEl("td", { text: tier });
-      tr.createEl("td", { text: model });
-    }
     const profiles = this.plugin.settings.launchProfiles;
-    // Only managed backends get an editable row — the built-in Claude profile needs no name or
-    // command field. A backend's toggle makes it the default; off means Claude is the default.
-    for (const profile of profiles) {
-      if (!profile.backend) continue;
-      const preset = BACKEND_PRESETS[profile.backend.presetId];
-      if (!preset) continue;
+    // One block per preset: the backend configured from it, or the button that adds it. At most
+    // one backend per preset — a second would only duplicate the same endpoint and models.
+    for (const preset of Object.values(BACKEND_PRESETS)) {
+      const consoleHint = containerEl.createEl("p", { cls: "setting-item-description" });
+      consoleHint.appendText(`Create a ${preset.name} subscription API key in the `);
+      const consoleLink = consoleHint.createEl("a", {
+        text: preset.consoleName,
+        href: preset.consoleUrl,
+      });
+      consoleLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        openExternal(preset.consoleUrl);
+      });
+      consoleHint.appendText(".");
+
+      const profile = profiles.find((p) => p.backend?.presetId === preset.id);
+      if (!profile) {
+        new Setting(containerEl)
+          .setName(`Add ${preset.name} backend`)
+          .setDesc(preset.tagline)
+          .addButton((b) =>
+            b
+              .setCta()
+              .setButtonText(`Add ${preset.name} backend`)
+              .onClick(async () => {
+                const id = newLaunchProfileId(profiles);
+                profiles.push({
+                  id,
+                  name: `Claude × ${preset.name}`,
+                  command: "",
+                  backend: { presetId: preset.id, model: preset.defaultModel },
+                });
+                // Seed the 0600 JSON + 0700 script now (empty key) so the files exist to fill in.
+                await this.plugin.backends?.write(id, seedBackendConfig(preset));
+                await this.plugin.saveData(this.plugin.settings);
+                this.display();
+              }),
+          );
+        continue;
+      }
+
       const row = new Setting(containerEl).setName(profile.name || preset.name);
       // API key field — the plugin saves it into the backend's 0600 JSON (never data.json).
       row.addText((t) => {
@@ -1958,34 +1960,32 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
             this.display();
           }),
       );
+      // No model picker in the row above: a preset pins fable/opus/sonnet/haiku to its own models
+      // (see BACKEND_PRESETS), and Claude Code's own `/model fable|opus|sonnet|haiku` switches
+      // between them inside the running session. Spelled out here, since there's no other UI for it.
+      const modelName = (id: string): string => preset.models[id]?.name ?? id;
+      containerEl.createEl("p", {
+        cls: "setting-item-description",
+        text: `${preset.name} model tiers — switch with /model inside the running session:`,
+      });
+      const tierTable = containerEl.createEl("table", { cls: "cw-backend-tiers" });
+      const tierHeader = tierTable.createEl("tr");
+      tierHeader.createEl("th", { text: "Tier" });
+      tierHeader.createEl("th", { text: `${preset.name} model` });
+      const tierRows: [string, string][] = [
+        ["Start", modelName(preset.defaultStartupModel)],
+        ["sonnet", modelName(preset.defaultModel)],
+        ["opus", modelName(preset.defaultOpusModel)],
+        ["haiku", modelName(preset.defaultHaikuModel)],
+        ["fable", modelName(preset.defaultFableModel)],
+      ];
+      for (const [tier, model] of tierRows) {
+        const tr = tierTable.createEl("tr");
+        tr.createEl("td", { text: tier });
+        tr.createEl("td", { text: model });
+      }
     }
     const backends = profiles.filter((p) => p.backend);
-    // The "Add Kimi backend" row only makes sense until one exists — after that, edit or delete
-    // the row above instead of adding a second.
-    if (backends.length === 0) {
-      const addKimi = new Setting(containerEl)
-        .setName("Add Kimi backend")
-        .setDesc("Run Claude Code on your Kimi subscription — paste the API key, no script to write.");
-      addKimi.addButton((b) =>
-        b
-          .setCta()
-          .setButtonText("Add Kimi backend")
-          .onClick(async () => {
-            const preset = BACKEND_PRESETS.kimi;
-            const id = newLaunchProfileId(profiles);
-            profiles.push({
-              id,
-              name: `Claude × ${preset.name}`,
-              command: "",
-              backend: { presetId: preset.id, model: preset.defaultModel },
-            });
-            // Seed the 0600 JSON + 0700 script now (empty key) so the files exist to fill in.
-            await this.plugin.backends?.write(id, seedBackendConfig(preset));
-            await this.plugin.saveData(this.plugin.settings);
-            this.display();
-          }),
-      );
-    }
 
     new Setting(containerEl)
       .setName("Launch Claude")

@@ -540,22 +540,22 @@
   line-height: 1;
 }
 /* Kimi backend tier → model table in the settings tab. */
-.cw-kimi-tiers {
+.cw-backend-tiers {
   width: 100%;
   margin: 4px 0 16px;
   border-collapse: collapse;
   font-size: var(--font-smaller);
 }
-.cw-kimi-tiers th,
-.cw-kimi-tiers td {
+.cw-backend-tiers th,
+.cw-backend-tiers td {
   padding: 4px 12px 4px 0;
   text-align: left;
   border-bottom: 1px solid var(--background-modifier-border);
 }
-.cw-kimi-tiers th {
+.cw-backend-tiers th {
   color: var(--text-muted);
   font-weight: 600;
 }
-.cw-kimi-tiers tr:last-child td {
+.cw-backend-tiers tr:last-child td {
   border-bottom: none;
 }

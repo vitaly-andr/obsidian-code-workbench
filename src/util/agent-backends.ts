@@ -2,7 +2,7 @@
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
 // Managed agent backends: run the Claude Code CLI against an Anthropic-compatible endpoint
-// (e.g. a Kimi subscription) without the user hand-writing a wrapper script. A backend is a
+// (a Kimi or GLM subscription) without the user hand-writing a wrapper script. A backend is a
 // human-readable JSON config (0600, holds the API key) plus a generated shell script (0700)
 // that exports the environment and execs `claude`. The key lives ONLY in the 0600 JSON — never
 // in the plugin's data.json, so it is not carried by Obsidian Sync or a vault backup.
@@ -22,6 +22,11 @@ export interface BackendPreset {
   id: string;
   name: string;
   baseUrl: string;
+  // Where the user creates the subscription API key, and what to call that page in the UI.
+  consoleUrl: string;
+  consoleName: string;
+  // One line for the settings row, before a backend of this preset exists.
+  tagline: string;
   defaultStartupModel: string;
   defaultModel: string;
   defaultFableModel: string;
@@ -48,7 +53,7 @@ export interface BackendConfig {
   models: Record<string, BackendModel>;
 }
 
-// v1 ships a single preset. Model ids and context sizes verified against the Kimi Code docs
+// Kimi model ids and context sizes verified against the Kimi Code docs
 // (kimi.com/code/docs/en/kimi-code/models) 2026-07-19; K3 released 2026-07-16. `k2.6` is not
 // listed: Kimi documents it as an automatic internal fallback when thinking is disabled on
 // k3/kimi-for-coding, not a model id selectable through ANTHROPIC_MODEL.
@@ -57,6 +62,9 @@ export const BACKEND_PRESETS: Record<string, BackendPreset> = {
     id: "kimi",
     name: "Kimi",
     baseUrl: "https://api.kimi.com/coding/",
+    consoleUrl: "https://www.kimi.com/code/console",
+    consoleName: "Kimi Code Console",
+    tagline: "Run Claude Code on your Kimi subscription — paste the API key, no script to write.",
     // User-confirmed tier mapping (2026-07-19): session starts on K2.7 standard; fable = K3 1M
     // (hardest/longest tasks); opus = K3 256K (complex reasoning); sonnet = K2.7 HighSpeed (what
     // `/model sonnet` switches to); haiku = K2.7 standard (k2.6 isn't a selectable id here).
@@ -78,6 +86,30 @@ export const BACKEND_PRESETS: Record<string, BackendPreset> = {
         contextTokens: 262_144,
         outputTokens: 32_000,
       },
+    },
+  },
+  // GLM Coding Plan (Z.ai). Endpoint, key page and tier mapping verified against the Z.ai docs
+  // (docs.z.ai/devpack/tool/claude + /devpack/overview) 2026-08-07: the subscription key works on
+  // the Anthropic-protocol endpoint, and Z.ai's own Claude Code setup maps haiku to glm-4.7 with
+  // sonnet and opus on glm-5.2 — kept as-is here. glm-5-turbo is in the plan too but stays out of
+  // the mapping; it would only displace glm-5.2 on a tier. Context/output sizes from the model
+  // pages (docs.z.ai/guides/llm/glm-5.2, /glm-4.7).
+  glm: {
+    id: "glm",
+    name: "GLM",
+    baseUrl: "https://api.z.ai/api/anthropic",
+    consoleUrl: "https://z.ai/manage-apikey/apikey-list",
+    consoleName: "Z.ai API keys page",
+    tagline: "Run Claude Code on your GLM Coding Plan subscription — paste the API key, no script to write.",
+    // Z.ai documents no Fable tier; it gets glm-5.2 as well, so `/model fable` has a target.
+    defaultStartupModel: "glm-5.2",
+    defaultModel: "glm-5.2",
+    defaultFableModel: "glm-5.2",
+    defaultOpusModel: "glm-5.2",
+    defaultHaikuModel: "glm-4.7",
+    models: {
+      "glm-5.2": { name: "GLM-5.2 (1M context)", contextTokens: 1_000_000, outputTokens: 128_000 },
+      "glm-4.7": { name: "GLM-4.7 (200K context)", contextTokens: 200_000, outputTokens: 128_000 },
     },
   },
 };
