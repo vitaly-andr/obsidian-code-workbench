@@ -84,7 +84,9 @@ export class DiffView extends ItemView {
       // proposed hunk. Use a red ✕ (reject) with an explicit tooltip instead.
       renderRevertControl: () => {
         // activeDocument (not the global document) so the button lives in the right window when the
-        // diff is opened in a popout.
+        // diff is opened in a popout. createElement, not Obsidian's createEl: the control has to be
+        // returned detached for CodeMirror to place it, and createEl appends to the node it is
+        // called on — on a Document that throws.
         const b = activeDocument.createElement("button");
         b.className = "cw-revert-reject";
         // aria-label alone: Obsidian renders its own styled tooltip from it. Setting `title` too
