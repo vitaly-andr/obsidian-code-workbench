@@ -4,6 +4,13 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.10.1] - 2026-08-07
+
+### Fixed
+- `package-lock.json` was out of sync with `package.json`, so `npm ci` refused to install from a
+  clean checkout. The lockfile now matches, and it carries the current version again instead of
+  the one it was left on in 4.2.0.
+
 ## [4.10.0] - 2026-08-07
 
 ### Added
