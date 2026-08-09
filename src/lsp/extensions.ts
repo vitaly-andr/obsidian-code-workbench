@@ -267,11 +267,10 @@ class InlayHintWidget extends WidgetType {
     );
   }
 
-  toDOM(view: EditorView): HTMLElement {
-    // The view's own document, not the global one, so this still renders correctly in a popped-out
-    // window (same convention as the diff view's revert button / git-graph's SVG elements).
-    const span = view.dom.ownerDocument.createElement("span");
-    span.className = `cw-lsp-inlay cw-lsp-inlay-${this.kind}`;
+  toDOM(): HTMLElement {
+    // Obsidian's global createSpan returns a detached element, which is what CodeMirror expects
+    // back from toDOM. Inserting it into a popped-out window adopts it into that document.
+    const span = createSpan({ cls: `cw-lsp-inlay cw-lsp-inlay-${this.kind}` });
     if (this.paddingLeft) span.classList.add("cw-lsp-inlay-pad-left");
     if (this.paddingRight) span.classList.add("cw-lsp-inlay-pad-right");
     span.textContent = this.label;

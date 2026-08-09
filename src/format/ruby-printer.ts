@@ -14,6 +14,8 @@
 // the full Prettier (all built-in language plugins), adding ~4MB to the bundle.
 import { builders } from "prettier/doc";
 import type { AstPath, Doc as PrettierDoc, ParserOptions, Plugin, Printer } from "prettier";
+// The node classes themselves, to recover each one's name — see NODE_TYPE_BY_CTOR.
+import * as PrismNodes from "@ruby/prism/src/nodes.js";
 
 const {
   group,
@@ -31,7 +33,7 @@ interface Location {
   length: number;
 }
 
-// Prism AST nodes are class instances discriminated by `constructor.name` (see nodeType), not a
+// Prism AST nodes are class instances discriminated by their class (see nodeType), not a
 // string-tagged union. This lists every field the printer reads. A few names are polymorphic across
 // node types: `body` is a single StatementsNode on DefNode/ClassNode but the statement list on
 // StatementsNode; `arguments_` is an ArgumentsNode on CallNode but a node list on ArgumentsNode.
@@ -117,8 +119,17 @@ interface RubyState {
   comments: Array<{ start: number; end: number; text: string }>;
 }
 
+// Prism's nodes carry no type tag, so the class itself is the discriminator. Reading
+// `constructor.name` works only while class names survive: a minified build renames them, every
+// node then matches nothing below, and the printer silently echoes the source back — formatting
+// that looks like a no-op. Export names are not renamed, so map constructor -> export name once.
+const NODE_TYPE_BY_CTOR = new Map<unknown, string>(
+  Object.entries(PrismNodes).map(([name, ctor]) => [ctor, name]),
+);
+
 function nodeType(node: RubyNode | null): string {
-  return node && node.constructor ? node.constructor.name : "";
+  if (!node?.constructor) return "";
+  return NODE_TYPE_BY_CTOR.get(node.constructor) ?? node.constructor.name;
 }
 
 function startOf(node: RubyNode): number {

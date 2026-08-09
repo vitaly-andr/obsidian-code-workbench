@@ -83,14 +83,13 @@ export class DiffView extends ItemView {
       // The default glyph is a rightward arrow that reads like "apply", but the action rejects the
       // proposed hunk. Use a red ✕ (reject) with an explicit tooltip instead.
       renderRevertControl: () => {
-        // activeDocument (not the global document) so the button lives in the right window when the
-        // diff is opened in a popout.
-        const b = activeDocument.createElement("button");
-        b.className = "cw-revert-reject";
+        // The global createEl, not the one on an element: this control has to be returned
+        // detached for CodeMirror to place it, and the element method appends to its receiver.
+        // A popped-out window adopts the button when the diff inserts it.
+        const b = createEl("button", { cls: "cw-revert-reject", text: "✕" });
         // aria-label alone: Obsidian renders its own styled tooltip from it. Setting `title` too
         // would also trigger the native browser tooltip — two tooltips on hover.
         b.setAttribute("aria-label", "Reject this change");
-        b.textContent = "✕";
         return b;
       },
     });

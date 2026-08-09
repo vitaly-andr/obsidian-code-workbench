@@ -73,6 +73,11 @@ const context = await esbuild.context({
   format: "cjs",
   platform: "node",
   target: "es2018",
+  // esbuild reads `paths` from tsconfig.json too, and ours maps each dependency to its .d.ts with a
+  // repo-local declaration behind it (see types/). That mapping is for type resolution only —
+  // following it here would make the bundler pull in declaration files instead of the real modules,
+  // so the build reads a config that inherits everything except the mapping.
+  tsconfig: "tsconfig.build.json",
   treeShaking: true,
   // Minify for release: shrinks the bundle and renames long generated identifiers to short names
   // (esbuild uses a/b/c, not _0x...). This is standard minification, not obfuscation.

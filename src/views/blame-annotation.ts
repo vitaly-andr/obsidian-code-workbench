@@ -51,11 +51,10 @@ class BlameWidget extends WidgetType {
   eq(other: BlameWidget): boolean {
     return other.text === this.text;
   }
-  toDOM(view: EditorView): HTMLElement {
-    const span = view.dom.ownerDocument.createElement("span");
-    span.className = "cw-blame-inline";
-    span.textContent = this.text;
-    return span;
+  toDOM(): HTMLElement {
+    // Detached on purpose: CodeMirror places the widget itself. Obsidian's global createSpan
+    // builds one, and inserting it into a popped-out window adopts it into that document.
+    return createSpan({ cls: "cw-blame-inline", text: this.text });
   }
   // Decorative only: never let the widget swallow editor events.
   ignoreEvent(): boolean {

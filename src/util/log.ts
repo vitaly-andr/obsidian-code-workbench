@@ -4,8 +4,12 @@
 // Lightweight console logging. Never log secrets (the auth token in particular).
 const PREFIX = "[code-workbench]";
 
+// Routine status lines go out at debug level: the developer console hides those behind its Verbose
+// filter, so a working plugin stays quiet for everyone else (Obsidian's "avoid unnecessary logging
+// to console" guideline). Warnings and errors below stay at their own level — they report something
+// the user may need to act on.
 export function info(...args: unknown[]): void {
-  console.log(PREFIX, ...args);
+  console.debug(PREFIX, ...args);
 }
 
 export function warn(...args: unknown[]): void {

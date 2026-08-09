@@ -2032,7 +2032,7 @@ class CodeWorkbenchSettingTab extends PluginSettingTab {
     });
     const coin = (label: string, qrKey: string): void => {
       const row = donate.createDiv({ cls: "cw-coin" });
-      row.createEl("div", { cls: "cw-coin-label", text: label });
+      row.createDiv({ cls: "cw-coin-label", text: label });
       const img = row.createEl("img", { cls: "cw-coin-qr", attr: { alt: `${label} QR` } });
       pendingShots.push([img, qrKey]);
     };

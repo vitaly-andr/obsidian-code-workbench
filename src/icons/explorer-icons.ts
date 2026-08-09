@@ -95,8 +95,9 @@ export class ExplorerIcons {
 
     let span = el.querySelector<HTMLElement>(`:scope > .${ICON_CLASS}`);
     if (!span) {
-      span = activeDocument.createElement("span");
-      span.className = ICON_CLASS;
+      // Created on the row itself, so the element belongs to that row's document (a popout window
+      // has its own) and insertBefore below only has to move it into place.
+      span = el.createSpan({ cls: ICON_CLASS });
       // Place the icon just before the label — after the folder's collapse chevron, if any.
       const content = el.querySelector(
         ":scope > .tree-item-inner, :scope > .nav-file-title-content, :scope > .nav-folder-title-content",

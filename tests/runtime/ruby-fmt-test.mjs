@@ -233,8 +233,52 @@ function indent(s) {
 }
 
 console.log(`\n${Object.keys(snippets).length - failures}/${Object.keys(snippets).length} snippets passed.`);
-if (failures > 0) {
-  console.log(`${failures} FAILURE(S).`);
+
+// The release bundle is minified, which renames classes. The printer identifies a Prism node by its
+// class, so a build that loses those names makes every node unrecognized and the printer echoes the
+// source back — formatting that reports success and changes nothing. The passes above run on
+// readable code and cannot see that, so repeat one snippet through a minified bundle that carries
+// the printer and the parser together, exactly as the plugin ships them.
+const minifiedEntry = new URL("./_minified-entry.mjs", import.meta.url);
+await writeFile(
+  minifiedEntry,
+  'export { makeRubyPlugin } from "../../src/format/ruby-printer";\n' +
+    'export { parsePrism } from "@ruby/prism/src/parsePrism.js";\n',
+);
+let minifiedFailed = false;
+try {
+  const minBuilt = await build({
+    entryPoints: [new URL(minifiedEntry).pathname],
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    write: false,
+    external: ["prettier"],
+    minify: true,
+  });
+  const minPath = new URL("./_minified.bundle.mjs", import.meta.url);
+  await writeFile(minPath, minBuilt.outputFiles[0].text);
+  let minMod;
+  try {
+    minMod = await import(minPath.href);
+  } finally {
+    await unlink(minPath).catch(() => {});
+  }
+  const minParse = (src, opts = {}) => minMod.parsePrism(instance.exports, src, opts);
+  const source = "def   greet(name)\n  puts    \"hi #{name}\"\nend";
+  const minOut = await format(source, { parser: "ruby", plugins: [minMod.makeRubyPlugin(minParse)] });
+  if (minOut === source) {
+    minifiedFailed = true;
+    console.log("MINIFIED BUILD: output identical to input — node types are not being recognized.");
+  } else {
+    console.log("MINIFIED BUILD: formats correctly (node types survive renaming).");
+  }
+} finally {
+  await unlink(minifiedEntry).catch(() => {});
+}
+
+if (failures > 0 || minifiedFailed) {
+  if (failures > 0) console.log(`${failures} FAILURE(S).`);
   process.exit(1);
 } else {
   console.log("All snippets: valid output + idempotent.");

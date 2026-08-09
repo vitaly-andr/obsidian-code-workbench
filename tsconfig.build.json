@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "comment": "Bundler-only view of the compiler options. It inherits everything from tsconfig.json but drops `paths`, which exists so the sources type-check without an install (see types/) and would otherwise make esbuild resolve imports to declaration files.",
+  "compilerOptions": {
+    "paths": {}
+  }
+}

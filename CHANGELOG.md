@@ -4,6 +4,24 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.10.2] - 2026-08-09
+
+### Fixed
+- Ruby files did not format. The command reported success and left the file untouched, because the
+  printer identifies each syntax node by its class and the release build renames classes when it
+  minifies — so every node looked unrecognized and the printer echoed the source back. Node types
+  are now read from the parser module's export names, which minification leaves alone. The test
+  harness formats a minified bundle too, which is what would have caught this.
+- Inline widgets (LSP inlay hints, git blame) and the diff view's reject button are built with
+  Obsidian's own DOM helpers rather than `document.createElement`.
+- Routine status messages go to the console at debug level, so a working plugin stays quiet.
+
+### Changed
+- The sources now type-check without installing dependencies: `tsconfig` maps each dependency to
+  its own declarations first and to a copy kept in `types/` second. A normal checkout resolves the
+  real ones and never reads the fallback. This is for tooling that inspects the repository without
+  running `npm install` — nothing in the plugin changes, and the bundle is unaffected.
+
 ## [4.10.1] - 2026-08-07
 
 ### Fixed

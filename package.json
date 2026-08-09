@@ -1,14 +1,14 @@
 {
   "name": "obsidian-code-workbench",
-  "version": "4.10.1",
+  "version": "4.10.2",
   "description": "Code Workbench — Claude Code integration for Obsidian.",
   "main": "main.js",
   "type": "module",
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
+    "build": "node scripts/check-type-fallbacks.mjs && tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
     "test": "vitest run",
-    "lint": "eslint \"src/**/*.ts\" main.ts",
+    "lint": "eslint \"src/**/*.ts\" \"types/**/*.d.ts\" main.ts",
     "smoke": "node tests/runtime/smoke.mjs"
   },
   "keywords": [
@@ -20,9 +20,9 @@
   ],
   "license": "LicenseRef-PolyForm-Shield-1.0.0",
   "devDependencies": {
+    "@codemirror/autocomplete": "^6.20.0",
     "@codemirror/commands": "^6.10.3",
     "@codemirror/language": "^6.12.3",
-    "@codemirror/autocomplete": "^6.20.0",
     "@codemirror/lint": "^6.9.7",
     "@codemirror/state": "6.5.0",
     "@codemirror/view": "6.43.1",
@@ -31,7 +31,7 @@
     "@types/ws": "^8.5.10",
     "esbuild": "^0.28.1",
     "eslint": "^9.39.4",
-    "eslint-plugin-obsidianmd": "^0.3.0",
+    "eslint-plugin-obsidianmd": "^0.4.1",
     "obsidian": "^1.5.0",
     "typescript": "^5.4.5",
     "typescript-eslint": "^8.62.1",
