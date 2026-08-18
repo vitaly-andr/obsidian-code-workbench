@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0
 // Copyright 2026 Vitaly Andrianov. See LICENSE.
 
-import { App, MarkdownView, Menu, Notice, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf, setIcon } from "obsidian";
+import { App, MarkdownView, Menu, Notice, Plugin, PluginSettingTab, TFile, WorkspaceLeaf, setIcon } from "obsidian";
+import type { SettingDefinitionItem } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import { randomUUID } from "crypto";
 import * as path from "path";
@@ -12,7 +13,7 @@ import { IdeServer } from "./src/server/websocket-server";
 import { activeSelection } from "./src/tools/selection";
 import { error, info, warn } from "./src/util/log";
 import { launchCommand } from "./src/util/launch";
-import { CLAUDE_PROFILE, newLaunchProfileId, normalizeLaunchProfiles } from "./src/util/launch-profiles";
+import { CLAUDE_PROFILE, normalizeLaunchProfiles } from "./src/util/launch-profiles";
 import type { LaunchProfile } from "./src/util/launch-profiles";
 import { AgentBackends, BACKEND_PRESETS, seedBackendConfig } from "./src/util/agent-backends";
 import { DEMO_FILES } from "./src/util/demo-files";
@@ -53,27 +54,10 @@ import { DEFAULT_LSP_SETTINGS, isLanguageEnabled } from "./src/lsp/settings";
 import type { LspSettings } from "./src/lsp/settings";
 // Type-only imports are erased at build, so naming the LSP controller/config here does NOT pull the
 // lazy runtime into the base bundle — that only happens at the dynamic import() in lspAttach.
-import type { LspController, ScanResult } from "./src/lsp";
+import type { LspController } from "./src/lsp";
 import type { LspEditorConfig } from "./src/views/code-view";
 import type { Extension } from "@codemirror/state";
-
-// window.open is unreliable in Obsidian's renderer; open external URLs through Electron's shell,
-// falling back to window.open.
-function openExternal(url: string): void {
-  try {
-    const req = (window as unknown as { require?: (m: string) => unknown }).require;
-    if (req) {
-      const electron = req("electron") as { shell?: { openExternal?: (u: string) => void } };
-      if (electron.shell?.openExternal) {
-        void electron.shell.openExternal(url);
-        return;
-      }
-    }
-  } catch {
-    // fall through to window.open
-  }
-  window.open(url, "_blank");
-}
+import { buildSettingDefinitions, getByPath, renderLegacy, setByPath } from "./src/settings";
 
 // Obsidian's Editor wraps a CodeMirror 6 EditorView on desktop; that view is not in the public
 // typings. Reach it through a narrow cast (no `any`) and degrade gracefully if it is ever absent.
@@ -447,11 +431,7 @@ export default class CodeWorkbenchPlugin extends Plugin {
       checkCallback: (checking: boolean) => {
         const view = this.app.workspace.getActiveViewOfType(CodeView);
         if (!view) return false;
-        if (!checking) {
-          void view.format().then((ok) => {
-            if (!ok) new Notice("Code Workbench: nothing to format here");
-          });
-        }
+        if (!checking) this.formatActiveCodeFile();
         return true;
       },
     });
@@ -783,6 +763,20 @@ export default class CodeWorkbenchPlugin extends Plugin {
     if (!leaf) return;
     await leaf.setViewState({ type: HIDDEN_TREE_VIEW_TYPE, active: true });
     await this.app.workspace.revealLeaf(leaf);
+  }
+
+  // Format the open code file. Shared by the "Format code file" command and the settings button,
+  // which is why the missing-view case says so out loud instead of staying silent: from settings
+  // the editor is behind the modal, and a button that appears to do nothing is worse than a notice.
+  formatActiveCodeFile(): void {
+    const view = this.app.workspace.getActiveViewOfType(CodeView);
+    if (!view) {
+      new Notice("Code Workbench: open a code file first");
+      return;
+    }
+    void view.format().then((ok) => {
+      if (!ok) new Notice("Code Workbench: nothing to format here");
+    });
   }
 
   // Reveal the git-graph panel in the left sidebar (reusing an existing one if already open).
@@ -1215,892 +1209,92 @@ export default class CodeWorkbenchPlugin extends Plugin {
   }
 }
 
-// Language coverage shown on the settings page: [name, highlighting, diagnostics, formatting].
-const LANGS: ReadonlyArray<readonly [string, boolean, boolean, boolean]> = [
-  ["Astro", true, true, true],
-  ["Blade", true, true, false],
-  ["C", true, true, true],
-  ["C#", true, true, false],
-  ["C++", true, true, true],
-  ["Clojure", true, true, false],
-  ["CSS", true, true, true],
-  ["Dart", true, true, true],
-  ["Diff", true, false, false],
-  ["EJS", true, true, false],
-  ["Elixir", true, true, false],
-  ["ERB", true, true, false],
-  ["ETLua", true, true, false],
-  ["Gherkin", true, true, false],
-  ["Go", true, true, true],
-  ["Haml", true, true, false],
-  ["Handlebars", true, true, false],
-  ["Haskell", true, true, false],
-  ["HTML", true, true, true],
-  ["INI", true, true, false],
-  ["Java", true, true, true],
-  ["JavaScript", true, true, true],
-  ["Jinja2", true, true, true],
-  ["JSON", true, true, true],
-  ["Julia", true, true, false],
-  ["Kotlin", true, true, false],
-  ["Less", true, false, true],
-  ["Liquid", true, true, false],
-  ["Lua", true, true, true],
-  ["Objective-C", true, true, true],
-  ["Perl", true, true, false],
-  ["PHP", true, true, true],
-  ["Pug", true, true, false],
-  ["Python", true, true, true],
-  ["R", true, true, false],
-  ["Ruby", true, true, true],
-  ["Rust", true, true, true],
-  ["Scala", true, true, false],
-  ["SCSS", true, false, true],
-  ["Shell", true, true, true],
-  ["Slim", true, true, false],
-  ["SQL", true, true, true],
-  ["Svelte", true, true, true],
-  ["Swift", true, true, false],
-  ["TOML", true, true, true],
-  ["Twig", true, true, false],
-  ["TypeScript", true, true, true],
-  ["Vue", true, true, true],
-  ["WebAssembly (WAT)", true, false, false],
-  ["XML", true, true, true],
-  ["YAML", true, true, true],
-  ["Zig", true, true, true],
-];
-
-// Human-readable label for a canonical grammar id (src/lsp/registry.ts), for the "Detected language
-// servers" list (006). Falls back to a capitalized id for anything not listed here.
-const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
-  ruby: "Ruby", typescript: "TypeScript", javascript: "JavaScript", tsx: "TSX", python: "Python",
-  rust: "Rust", go: "Go", c: "C", cpp: "C++", objc: "Objective-C", csharp: "C#", java: "Java",
-  php: "PHP", scala: "Scala", haskell: "Haskell", elixir: "Elixir", zig: "Zig", lua: "Lua",
-  bash: "Bash", swift: "Swift", r: "R", perl: "Perl", clojure: "Clojure", dart: "Dart",
-  julia: "Julia", kotlin: "Kotlin", vue: "Vue", svelte: "Svelte", html: "HTML", css: "CSS",
-  json: "JSON", yaml: "YAML", toml: "TOML", xml: "XML", sql: "SQL", astro: "Astro",
-};
-
-function languageDisplayName(language: string): string {
-  return LANGUAGE_DISPLAY_NAMES[language] ?? language.charAt(0).toUpperCase() + language.slice(1);
-}
-
-// The runnable install command inside a registry install hint, for the copy button (006). The command
-// is the first backtick-wrapped span that has arguments (a space) — e.g. `gem install ruby-lsp`; a bare
-// `binary` name like `zls` is a reference, not a command, so those hints get no copy button.
-function installCommandFrom(hint: string): string | null {
-  const match = hint.match(/`([^`]+\s[^`]+)`/);
-  return match ? match[1] : null;
-}
-
-// "on PATH" / "via a version manager" / "user-configured" (FR-010).
-function originLabel(origin: "path" | "version-manager" | "user"): string {
-  if (origin === "version-manager") return "via a version manager";
-  if (origin === "user") return "user-configured";
-  return "on PATH";
-}
-
 class CodeWorkbenchSettingTab extends PluginSettingTab {
   constructor(app: App, private readonly plugin: CodeWorkbenchPlugin) {
     super(app, plugin);
+    // Everything in styles.css hangs off this class. It belongs on the container itself, not in a
+    // render pass: Obsidian 1.13 paints the tab from the definitions and never calls display().
+    this.containerEl.addClass("cw-settings");
   }
 
+  // Obsidian >= 1.13 renders a settings tab from the array this returns and builds its settings
+  // search index from the same array — which is the point: an imperative display() is invisible to
+  // that search. Called once from addSettingTab(), at plugin load, so it stays allocation-only;
+  // anything that scans or fetches lives in a render callback (src/settings/blocks.ts).
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    return buildSettingDefinitions(this.plugin, this);
+  }
+
+  // Obsidian < 1.13 knows nothing about definitions and calls this instead — a non-empty
+  // getSettingDefinitions() switches it off. Both paths paint the same array, so neither can
+  // drift away from the other.
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.addClass("cw-settings");
+    renderLegacy(containerEl, buildSettingDefinitions(this.plugin, this), this);
+  }
 
-    // Screenshots live in qr.ts (~0.5MB base64). Load that module only when settings open, not on
-    // plugin load: create the <img> now (correct layout slot) and fill its src once it resolves.
-    // Crypto/contact QR codes are tiny and bundled (qr.ts, filled below). Settings screenshots are
-    // fetched from the repo via jsDelivr (CDN, browser-cached) instead of inlined — the same lazy
-    // pattern as grammars and icons, so they stay full-quality and off the main.js bundle.
-    const pendingShots: Array<[HTMLImageElement, string]> = [];
-    const SHOT_CDN = "https://cdn.jsdelivr.net/gh/vitaly-andr/obsidian-code-workbench@main/docs/";
-    const SHOTS: Record<string, string> = {
-      WORKBENCH_SHOT: "workbench.png",
-      DIFF_SHOT: "keep-reject-diff.png",
-      GIT_BRANCH_SHOT: "git-branch.png",
-      GIT_GRAPH_SHOT: "git-graph-panel.png",
-      GIT_BLAME_SHOT: "git-blame.png",
-      ICONS_SHOT: "file-icons.png",
-      HIDDEN_SHOT: "hidden-files.png",
-      CONNECT_SHOT: "connect.png",
-    };
-    const addShot = (key: string, alt: string): void => {
-      containerEl.createEl("img", {
-        cls: "cw-shot",
-        attr: { alt, src: SHOT_CDN + SHOTS[key], loading: "lazy" },
-      });
-    };
+  /**
+   * Repaint after a change that alters which rows are visible. Obsidian 1.13 re-evaluates the
+   * `visible` predicates through update(); older versions have no such method and repaint whole.
+   */
+  refresh(): void {
+    // Reached through a narrowed view of the tab rather than as this.update(): the method arrived
+    // in 1.13 and the plugin still supports 1.7.2, where it is genuinely absent.
+    const tab = this as unknown as { update?: () => void };
+    if (typeof tab.update === "function") tab.update();
+    else this.display();
+  }
 
-    const badges = containerEl.createDiv({ cls: "cw-badges" });
-    const badge = (text: string, color: string): void => {
-      badges.createSpan({ cls: `cw-badge cw-badge-${color}`, text });
-    };
-    badge(`v${this.plugin.manifest.version}`, "green");
-    badge("PolyForm Shield 1.0.0", "blue");
-    badge("Desktop only", "grey");
+  /** Reads a definition's key from the plugin's settings (dotted for the nested LSP ones). */
+  getControlValue(key: string): unknown {
+    return getByPath(this.plugin.settings, key);
+  }
 
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text:
-        "Code Workbench gives Claude the tools to maintain your vault from inside Obsidian, plus a " +
-        "real editor for code and config files: syntax highlighting, error diagnostics, and one-command " +
-        "formatting for 50+ languages, with a Keep/Reject diff for every edit Claude makes.",
-    });
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text:
-        "One click in the status bar opens a terminal in your vault with the Claude Code CLI already " +
-        "connected, no /ide. Because it drives the CLI you already run, it uses your Claude subscription " +
-        "instead of a metered API key, so letting Claude work across a whole vault doesn't run up an API " +
-        "bill. It works with other Claude Code compatible models too, like Kimi K2 or DeepSeek.",
-    });
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text:
-        "Turn on the vault tools and Claude reads and edits notes through Obsidian's own link graph " +
-        "(backlinks, wikilinks, frontmatter) and makes link-preserving changes, filing new notes where " +
-        "they belong and holding your PARA or Zettelkasten system together without breaking links. Every " +
-        "change is shown for your approval first, so you don't need to write code to use it.",
-    });
-    containerEl
-      .createEl("p", { cls: "setting-item-description" })
-      .createEl("em", {
-        text: "Other Claude plugins give you a chat. This gives Claude tools to maintain your vault, and you an editor to review it.",
-      });
+  /**
+   * Persists a definition's key and runs whatever that setting does beyond being stored. Setting
+   * controls carry no onChange of their own, so this is where the toggles' side effects live.
+   */
+  setControlValue(key: string, value: unknown): Promise<void> {
+    return this.applySetting(key, value);
+  }
 
-    addShot("WORKBENCH_SHOT", "A code file open in the Code Workbench editor");
-
-    new Setting(containerEl).setName("What makes it different").setHeading();
-    const feats = containerEl.createEl("ul");
-    const feat = (lead: string, rest: string): void => {
-      const li = feats.createEl("li");
-      li.createEl("strong", { text: lead });
-      li.createSpan({ text: `: ${rest}` });
-    };
-    feat(
-      "Edit non-Markdown files",
-      "Obsidian only edits Markdown. Code Workbench opens .rs, .py, .ts, .go, .json, .yaml and " +
-        "dozens more in an editable, highlighted view, and saves your changes back to the file.",
-    );
-    feat("Syntax highlighting", "about 50 languages via tree-sitter, colored to match your Obsidian theme.");
-    feat("Diagnostics", "syntax errors are underlined where they occur, for about 48 languages.");
-    feat(
-      "One-command formatting",
-      "the Format code file command reformats about 28 languages, including JSON, XML, YAML, TOML, " +
-        "JavaScript, TypeScript, Python, Go, Rust, Ruby, PHP, and C/C++.",
-    );
-    feat(
-      "Accept or reject Claude's edits",
-      "a proposed change opens as a side-by-side diff. Keep it or reject it, and edit the proposed " +
-        "side first if you want. Nothing is written until you keep it.",
-    );
-    feat(
-      "Works with any model",
-      "it speaks the Claude Code CLI protocol rather than a model API, so it runs with Claude, " +
-        "Kimi K2, or any Anthropic-compatible endpoint you use through the CLI.",
-    );
-    feat(
-      "Launch Claude in one click",
-      "start the Claude Code CLI in this vault from the status bar or settings; it opens your " +
-        "terminal in the right folder.",
-    );
-    feat(
-      "Maintain the vault with Claude",
-      "turn on Vault tools to let Claude read and edit notes through Obsidian's own link graph " +
-        "(backlinks, frontmatter) and make link-preserving changes, each shown for your approval.",
-    );
-    feat(
-      "Git review",
-      "a branch indicator in the status bar, a branch-graph panel with click-to-diff, inline git " +
-        "blame on the current line, and VS Code-style status marks in the explorer. Right-click a file " +
-        "to diff its uncommitted changes against the last commit, all without leaving Obsidian.",
-    );
-    feat("File-type icons", "Material file and folder icons in the explorer, fetched on demand and cached.");
-    feat(
-      "Edit hidden files",
-      "a Hidden files panel lists the dot-files Obsidian normally hides (.mcp.json, .gitignore, and " +
-        "the config folder) as a tree and opens them in the editor.",
-    );
-
-    addShot("DIFF_SHOT", "A Claude edit shown as a Keep / Reject diff");
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text: "A Claude edit, shown as a Keep / Reject diff.",
-    });
-
-    addShot("GIT_BRANCH_SHOT", "The current git branch in the status bar");
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text: "The current branch in the status bar, colored by working-tree state.",
-    });
-
-    addShot("GIT_GRAPH_SHOT", "Repository history drawn as a branch graph");
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text: "The repository history as a branch graph; click a commit for its files, a file for a diff.",
-    });
-
-    addShot("GIT_BLAME_SHOT", "Inline git blame on the current line");
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text: "Inline git blame on the current line, in code files and Markdown notes.",
-    });
-
-    addShot("ICONS_SHOT", "Material file-type icons in the file explorer");
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text: "Material file and folder icons in the explorer.",
-    });
-
-    addShot("HIDDEN_SHOT", "The Hidden files panel listing a vault's dot-files");
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text: "The Hidden files panel: edit the dot-files Obsidian normally hides.",
-    });
-
-    new Setting(containerEl).setName("Using it").setHeading();
-    const steps = containerEl.createEl("ol");
-    [
-      "Open a code file in your vault. It opens in an editable, highlighted editor.",
-      "Turn on Enable syntax highlighting below for tree-sitter colors and error underlines.",
-      'Format a file: open the Command Palette (Ctrl/Cmd+P), type "Format code file", and run it. You can assign a hotkey under Settings → Hotkeys.',
-      'Connect Claude: run "claude" in the vault folder, then run /ide in the CLI and pick Obsidian. The status bar shows "Claude ●" once connected (and "Claude ○" while it waits).',
-      'Share a selection: select text in a file and run "Add selection to Claude context" from the Command Palette to send it as an @-mention. With "Share selection automatically" on, the current selection is sent as it changes.',
-      "Claude's edits then open as a Keep / Reject diff you accept or reject.",
-    ].forEach((t) => steps.createEl("li", { text: t }));
-
-    addShot("CONNECT_SHOT", "Claude Code's /ide picker with Obsidian connected");
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text: "Running /ide in the CLI: pick Obsidian to connect.",
-    });
-
-    new Setting(containerEl).setName("Language support").setHeading();
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text:
-        "Highlighting for 52 languages, diagnostics for 48, formatting for 28. Each grammar and " +
-        "formatter downloads the first time you open that language, then stays cached.",
-    });
-    const tableWrap = containerEl.createDiv({ cls: "cw-lang-table-wrap" });
-    const table = tableWrap.createEl("table", { cls: "cw-lang-table" });
-    const head = table.createEl("thead").createEl("tr");
-    for (const h of ["Language", "Highlighting", "Diagnostics", "Formatting"]) {
-      head.createEl("th", { text: h });
+  private async applySetting(key: string, value: unknown): Promise<void> {
+    setByPath(this.plugin.settings, key, value);
+    await this.plugin.saveData(this.plugin.settings);
+    const on = value === true;
+    switch (key) {
+      case "treeSitter":
+      case "indentGuides":
+        this.plugin.refreshCodeViews();
+        break;
+      case "gitBlame":
+        this.plugin.refreshAllBlame();
+        break;
+      case "gitDecorations":
+        this.plugin.setGitDecorations(on);
+        break;
+      case "fileIcons":
+        this.plugin.setFileIcons(on);
+        break;
+      case "showHiddenFiles":
+        await this.plugin.setShowHiddenFiles(on);
+        break;
+      case "vaultTools":
+        await this.plugin.setVaultTools(on);
+        this.refresh();
+        break;
+      case "lsp.enabled":
+        this.plugin.refreshLspViews();
+        this.refresh();
+        break;
+      case "lsp.inlayHints":
+      case "lsp.semanticTokens":
+      case "lsp.folding":
+        this.plugin.refreshLspViews();
+        break;
+      default:
+        break;
     }
-    const body = table.createEl("tbody");
-    for (const [name, hi, di, fo] of LANGS) {
-      const tr = body.createEl("tr");
-      tr.createEl("td", { text: name });
-      tr.createEl("td", { text: hi ? "✅" : "—" });
-      tr.createEl("td", { text: di ? "✅" : "—" });
-      tr.createEl("td", { text: fo ? "✅" : "—" });
-    }
-
-    new Setting(containerEl).setName("Try it").setHeading();
-    const tryP = containerEl.createEl("p", { cls: "setting-item-description" });
-    tryP.createSpan({ text: "Add the sample files to this vault, then open a language folder: " });
-    tryP.createEl("code", { text: "sample-*" });
-    tryP.createSpan({ text: " for highlighting, " });
-    tryP.createEl("code", { text: "messy-*" });
-    tryP.createSpan({ text: " for a diagnostic (a red underline at the spot marked in a comment), and " });
-    tryP.createEl("code", { text: "format-me-*" });
-    tryP.createSpan({ text: " for formatting (run Format code file and watch the layout fix itself)." });
-
-    new Setting(containerEl)
-      .setName("Demo files")
-      .setDesc('Copies a "Code Workbench demo" folder into this vault and opens a sample.')
-      .addButton((b) =>
-        b
-          .setCta()
-          .setButtonText("Add demo files to this vault")
-          .onClick(() => {
-            void this.plugin.installDemo();
-          }),
-      );
-
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text:
-        "Every feature is optional; turn off what you don't use. The vault tools stay off until you " +
-        "switch them on.",
-    });
-
-    new Setting(containerEl)
-      .setName("Share selection automatically")
-      .setDesc("Notify Claude as your selection changes. Turn off to share only via the \"Add selection to Claude context\" command.")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.shareSelection).onChange(async (value) => {
-          this.plugin.settings.shareSelection = value;
-          await this.plugin.saveData(this.plugin.settings);
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName("Enable syntax highlighting")
-      .setDesc(
-        "Richer highlighting and syntax-error underlines for ~50 languages. Each language downloads a " +
-          "small grammar (~0.5–2 MB) once on first use and stays cached, so the internet is only needed " +
-          "that first time. Off keeps the simple highlighter.",
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.treeSitter).onChange(async (value) => {
-          this.plugin.settings.treeSitter = value;
-          await this.plugin.saveData(this.plugin.settings);
-          this.plugin.refreshCodeViews();
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName("Show indentation guides")
-      .setDesc(
-        "Draw faint vertical lines at each indentation level in the code editor and in diffs. On by default.",
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.indentGuides).onChange(async (value) => {
-          this.plugin.settings.indentGuides = value;
-          await this.plugin.saveData(this.plugin.settings);
-          this.plugin.refreshCodeViews();
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName("Inline git blame")
-      .setDesc(
-        "On the current line, show who last changed it and when (\"commit · author · age · summary\"), " +
-          "read from git blame, in both the code editor and Markdown notes. The line you are editing " +
-          "reads as \"You · uncommitted\". Shows nothing when the vault is not a git repository. Desktop only.",
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.gitBlame).onChange(async (value) => {
-          this.plugin.settings.gitBlame = value;
-          await this.plugin.saveData(this.plugin.settings);
-          this.plugin.refreshAllBlame();
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName("Git status in the explorer")
-      .setDesc(
-        "Mark changed files in the file explorer, like VS Code: a modified file is tinted with an \"M\", " +
-          "a new (untracked) file with a \"U\", and folders that contain changes are tinted too. Hidden " +
-          "dot-files carry the same marks in the Hidden files panel. Status is read from git when the " +
-          "repository or your files change. Shows nothing when the vault is not a git repository. Desktop only.",
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.gitDecorations).onChange(async (value) => {
-          this.plugin.settings.gitDecorations = value;
-          this.plugin.setGitDecorations(value);
-          await this.plugin.saveData(this.plugin.settings);
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName("File type icons")
-      .setDesc(
-        "Show Material file and folder icons in the file explorer. Each icon downloads once on first " +
-          "use, then stays cached.",
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.fileIcons).onChange(async (value) => {
-          this.plugin.settings.fileIcons = value;
-          this.plugin.setFileIcons(value);
-          await this.plugin.saveData(this.plugin.settings);
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName("Show hidden files")
-      .setDesc(
-        "Obsidian hides dot-files (.mcp.json, .gitignore, your config folder…) from the explorer. Turn this on " +
-          "to open a Hidden files panel in the left sidebar: a tree of the editable dot-files; click one " +
-          "to edit it. Hidden files are not auto-saved, so press Mod+S to save your changes. Uses the same " +
-          "file icons as the explorer when those are on. Desktop only.",
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.showHiddenFiles).onChange(async (value) => {
-          this.plugin.settings.showHiddenFiles = value;
-          await this.plugin.saveData(this.plugin.settings);
-          await this.plugin.setShowHiddenFiles(value);
-        }),
-      );
-
-    new Setting(containerEl).setName("Vault tools for Claude").setHeading();
-    new Setting(containerEl)
-      .setName("Vault tools (Claude)")
-      .setDesc(
-        "Let Claude read and safely maintain this vault (backlinks, search, frontmatter, " +
-          "link-preserving rename, and trash delete) as model-callable tools. Off by default. Every write " +
-          "is shown for your approval before anything changes. Local-only and desktop-only.",
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.vaultTools).onChange(async (value) => {
-          this.plugin.settings.vaultTools = value;
-          await this.plugin.saveData(this.plugin.settings);
-          await this.plugin.setVaultTools(value);
-          this.display();
-        }),
-      );
-    if (this.plugin.settings.vaultTools) {
-      const cmd = this.plugin.companionCommand();
-      const vt = containerEl.createEl("p", { cls: "setting-item-description" });
-      if (cmd) {
-        vt.createSpan({
-          text:
-            `Connected automatically: a project .mcp.json is written to this vault, so a fresh ` +
-            `"claude" session in the vault folder lists the obsidian-vault tools after a one-time ` +
-            `approval. Manual fallback:`,
-        });
-        containerEl.createEl("pre", { cls: "cw-mcp-cmd" }).createEl("code", { text: cmd });
-      } else {
-        vt.setText("Starting the companion server…");
-      }
-    }
-
-    // Editor-LSP (005-editor-lsp). Skeleton only: the master switch persists here; per-language
-    // Master switch + (when on) the agent-diagnostics toggle, per-language opt-out, and custom server
-    // commands (FR-002/FR-025/FR-026). The persisted shape and the discovery/runtime already honour
-    // these; this is the user surface. Review-lint-safe: descriptive heading, Setting controls only,
-    // no inline styles, window timers.
-    new Setting(containerEl).setName("Language servers (LSP)").setHeading();
-    new Setting(containerEl)
-      .setName("Editor language intelligence")
-      .setDesc(
-        "Opt-in. When on, the editor discovers a language server you already have installed (it never " +
-          "installs one) and adds diagnostics, completion, hover, and code navigation (right-click to " +
-          "go to a definition or find references, across files) on top of highlighting. Off by " +
-          "default; nothing runs and startup is unchanged while it is off. Desktop-only.",
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.lsp.enabled).onChange(async (value) => {
-          this.plugin.settings.lsp.enabled = value;
-          await this.plugin.saveData(this.plugin.settings);
-          this.plugin.refreshLspViews();
-          this.display();
-        }),
-      );
-
-    if (this.plugin.settings.lsp.enabled) {
-      // Agent diagnostics (FR-026): route the editor's LSP diagnostics into the IDE getDiagnostics
-      // tool so Claude gets an edit → verify → fix loop. Live (the bridge is implemented); read-only.
-      new Setting(containerEl)
-        .setName("Send diagnostics to Claude")
-        .setDesc(
-          "Let the Claude agent read the same errors and warnings the editor shows, through the IDE " +
-            "getDiagnostics tool, for an edit → verify → fix loop. Read-only; off leaves getDiagnostics empty.",
-        )
-        .addToggle((toggle) =>
-          toggle.setValue(this.plugin.settings.lsp.exposeToAgent).onChange(async (value) => {
-            this.plugin.settings.lsp.exposeToAgent = value;
-            await this.plugin.saveData(this.plugin.settings);
-          }),
-        );
-
-      // Inlay hints (010): render the server's inferred-type and parameter-name hints inline. On by
-      // default; gates just this feature and re-applies to open editors on change (like other LSP toggles).
-      new Setting(containerEl)
-        .setName("Show inlay hints")
-        .setDesc(
-          "Show the language server's inline hints — inferred types and parameter names — in the code " +
-            "editor. Depends on the server providing them (some enable inlay hints only when configured).",
-        )
-        .addToggle((toggle) =>
-          toggle.setValue(this.plugin.settings.lsp.inlayHints !== false).onChange(async (value) => {
-            this.plugin.settings.lsp.inlayHints = value;
-            await this.plugin.saveData(this.plugin.settings);
-            this.plugin.refreshLspViews();
-          }),
-        );
-
-      // Semantic highlighting (011): recolor tokens by the server's classification, layered over
-      // tree-sitter. On by default; gates just this feature and re-applies to open editors on change.
-      new Setting(containerEl)
-        .setName("Semantic highlighting")
-        .setDesc(
-          "Recolor code by the language server's understanding of it — a parameter vs. a local " +
-            "variable, a type, a deprecated symbol — layered over the existing syntax highlighting. " +
-            "Depends on the server providing semantic tokens.",
-        )
-        .addToggle((toggle) =>
-          toggle.setValue(this.plugin.settings.lsp.semanticTokens !== false).onChange(async (value) => {
-            this.plugin.settings.lsp.semanticTokens = value;
-            await this.plugin.saveData(this.plugin.settings);
-            this.plugin.refreshLspViews();
-          }),
-        );
-
-      // Code folding (012): a fold gutter driven by the server's structural regions. On by default;
-      // gates just this feature and re-applies to open editors on change.
-      new Setting(containerEl)
-        .setName("Code folding")
-        .setDesc(
-          "Show a fold gutter for the regions the language server reports (functions, blocks, " +
-            "import groups) so you can collapse and expand them. Depends on the server providing " +
-            "folding ranges.",
-        )
-        .addToggle((toggle) =>
-          toggle.setValue(this.plugin.settings.lsp.folding !== false).onChange(async (value) => {
-            this.plugin.settings.lsp.folding = value;
-            await this.plugin.saveData(this.plugin.settings);
-            this.plugin.refreshLspViews();
-          }),
-        );
-
-      // Detected language servers (006): scan the resolved environment for installed servers on
-      // section-open and list each connectable language (US1). Async — Obsidian's display() is
-      // synchronous, so a "Scanning…" placeholder holds the spot (FR-008) until the scan resolves.
-      new Setting(containerEl).setName("Detected language servers").setHeading();
-      const scanContainer = containerEl.createDiv({ cls: "cw-lsp-scan" });
-      new Setting(scanContainer).setName("Scanning…").setDesc("Looking for installed language servers.");
-
-      // "Show all / not installed" is a pure repaint of the last scan result — no re-scan, so
-      // toggling it never flashes "Scanning…" (that stays reserved for an actual (re)scan).
-      let notInstalledOpen = false;
-
-      const paintScan = (result: ScanResult): void => {
-        scanContainer.empty();
-
-        if (result.detected.length === 0) {
-          // Never a blank area (FR-006): point at how to install one and where the hints are.
-          new Setting(scanContainer)
-            .setName("No language servers detected")
-            .setDesc(
-              "None of the supported servers were found. See \"Show all / not installed\" below for " +
-                "install hints, then Rescan.",
-            );
-        }
-        for (const server of result.detected) {
-          // Toggle drives the same perLanguage map the editor runtime reads (FR-012): ON deletes
-          // the key (absent = enabled), OFF writes `false`. onChange re-applies to open editors
-          // immediately (SC-002), superseding the old comma-separated "Disabled languages" field.
-          new Setting(scanContainer)
-            .setName(`${languageDisplayName(server.language)} — ${server.serverId}`)
-            .setDesc(`Detected ${originLabel(server.origin)}.`)
-            .addToggle((toggle) =>
-              toggle
-                .setValue(this.plugin.settings.lsp.perLanguage[server.language] !== false)
-                .onChange(async (value) => {
-                  if (value) delete this.plugin.settings.lsp.perLanguage[server.language];
-                  else this.plugin.settings.lsp.perLanguage[server.language] = false;
-                  await this.plugin.saveData(this.plugin.settings);
-                  this.plugin.refreshLspViews();
-                }),
-            );
-        }
-
-        new Setting(scanContainer)
-          .setName("Rescan")
-          .setDesc("Re-run detection, e.g. right after installing a server. No restart needed.")
-          .addButton((button) =>
-            button.setButtonText("Rescan").onClick(() => void runScan(true)),
-          );
-
-        new Setting(scanContainer)
-          .setName(notInstalledOpen ? "Hide not-installed languages" : "Show all / not installed")
-          .setDesc("The remaining supported languages with no detected server, and how to install one.")
-          .addButton((button) =>
-            button.setButtonText(notInstalledOpen ? "Hide" : "Show all").onClick(() => {
-              notInstalledOpen = !notInstalledOpen;
-              paintScan(result);
-            }),
-          );
-        if (notInstalledOpen) {
-          for (const lang of result.notDetected) {
-            const row = new Setting(scanContainer)
-              .setName(languageDisplayName(lang.language))
-              .setDesc(lang.installHint);
-            // Copy the install command to the clipboard (the hint's command is otherwise unselectable
-            // prose). Shown only when the hint carries a runnable command, not a bare binary name.
-            const command = installCommandFrom(lang.installHint);
-            if (command) {
-              row.addExtraButton((button) =>
-                button
-                  .setIcon("copy")
-                  .setTooltip(`Copy: ${command}`)
-                  .onClick(() => {
-                    void navigator.clipboard.writeText(command);
-                    new Notice("Install command copied");
-                  }),
-              );
-            }
-          }
-        }
-      };
-
-      const runScan = async (rescan: boolean): Promise<void> => {
-        scanContainer.empty();
-        new Setting(scanContainer).setName("Scanning…").setDesc("Looking for installed language servers.");
-        const controller = await this.plugin.ensureLspController();
-        if (rescan) (await import("./src/lsp")).invalidateEnvironmentCache();
-        const result = await controller.scanServers();
-        // The tab may have re-rendered (master toggle) or closed while the scan was in flight;
-        // isConnected is false once containerEl.empty() detached this subsection — skip that paint.
-        if (!scanContainer.isConnected) return;
-        paintScan(result);
-      };
-
-      void runScan(false);
-
-      // Custom servers (FR-025): one "language = command arg1 arg2" per line. A user-configured
-      // server is trusted and overrides discovery for that language. Parsed on change.
-      const customLines = Object.entries(this.plugin.settings.lsp.customServers)
-        .map(([lang, s]) => `${lang} = ${[s.command, ...(s.args ?? [])].join(" ")}`)
-        .join("\n");
-      new Setting(containerEl)
-        .setName("Custom servers (advanced)")
-        .setDesc(
-          "One per line as \"language = command args\", e.g. \"ruby = /opt/ruby-lsp\". A server you " +
-            "configure here is trusted and used instead of auto-discovery for that language.",
-        )
-        .addTextArea((area) =>
-          area
-            .setValue(customLines)
-            .onChange(async (value) => {
-              const map: Record<string, { command: string; args?: string[] }> = {};
-              for (const line of value.split("\n")) {
-                const eq = line.indexOf("=");
-                if (eq < 0) continue;
-                const lang = line.slice(0, eq).trim().toLowerCase();
-                const parts = line.slice(eq + 1).trim().split(/\s+/).filter(Boolean);
-                if (!lang || parts.length === 0) continue;
-                map[lang] = { command: parts[0], args: parts.slice(1) };
-              }
-              this.plugin.settings.lsp.customServers = map;
-              await this.plugin.saveData(this.plugin.settings);
-              this.plugin.refreshLspViews();
-            }),
-        );
-    }
-
-    new Setting(containerEl).setName("Connection").setDesc(this.plugin.statusText());
-
-    new Setting(containerEl).setName("Agent launcher").setHeading();
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text:
-        "Clicking the status-bar button launches the Claude Code CLI. Add a backend below to run " +
-        "Claude Code on a Kimi or GLM subscription instead — paste an API key and the plugin " +
-        "writes the wrapper script for you. Once added, right-click the status-bar button to " +
-        "launch it.",
-    });
-    const profiles = this.plugin.settings.launchProfiles;
-    // One block per preset: the backend configured from it, or the button that adds it. At most
-    // one backend per preset — a second would only duplicate the same endpoint and models.
-    for (const preset of Object.values(BACKEND_PRESETS)) {
-      const consoleHint = containerEl.createEl("p", { cls: "setting-item-description" });
-      consoleHint.appendText(`Create a ${preset.name} subscription API key in the `);
-      const consoleLink = consoleHint.createEl("a", {
-        text: preset.consoleName,
-        href: preset.consoleUrl,
-      });
-      consoleLink.addEventListener("click", (e) => {
-        e.preventDefault();
-        openExternal(preset.consoleUrl);
-      });
-      consoleHint.appendText(".");
-
-      const profile = profiles.find((p) => p.backend?.presetId === preset.id);
-      if (!profile) {
-        new Setting(containerEl)
-          .setName(`Add ${preset.name} backend`)
-          .setDesc(preset.tagline)
-          .addButton((b) =>
-            b
-              .setCta()
-              .setButtonText(`Add ${preset.name} backend`)
-              .onClick(async () => {
-                const id = newLaunchProfileId(profiles);
-                profiles.push({
-                  id,
-                  name: `Claude × ${preset.name}`,
-                  command: "",
-                  backend: { presetId: preset.id, model: preset.defaultModel },
-                });
-                // Seed the 0600 JSON + 0700 script now (empty key) so the files exist to fill in.
-                await this.plugin.backends?.write(id, seedBackendConfig(preset));
-                await this.plugin.saveData(this.plugin.settings);
-                this.display();
-              }),
-          );
-        continue;
-      }
-
-      const row = new Setting(containerEl).setName(profile.name || preset.name);
-      // API key field — the plugin saves it into the backend's 0600 JSON (never data.json).
-      row.addText((t) => {
-        t.setPlaceholder("API key");
-        t.inputEl.type = "password";
-        void this.plugin.backends?.readConfig(profile.id).then((cfg) => {
-          if (cfg?.authToken) t.setValue(cfg.authToken);
-        });
-        t.onChange(async (value) => {
-          await this.plugin.syncBackend(profile, value.trim());
-        });
-      });
-      // Launch this backend now (same as picking it from the status-bar right-click menu).
-      row.addExtraButton((b) =>
-        b
-          .setIcon("play")
-          .setTooltip("Launch this backend")
-          .onClick(() => void this.plugin.launchProfile(profile)),
-      );
-      row.addExtraButton((b) =>
-        b
-          .setIcon("trash")
-          .setTooltip("Delete backend")
-          .onClick(async () => {
-            const idx = profiles.indexOf(profile);
-            if (idx >= 0) profiles.splice(idx, 1);
-            await this.plugin.backends?.remove(profile.id);
-            await this.plugin.saveData(this.plugin.settings);
-            this.display();
-          }),
-      );
-      // No model picker in the row above: a preset pins fable/opus/sonnet/haiku to its own models
-      // (see BACKEND_PRESETS), and Claude Code's own `/model fable|opus|sonnet|haiku` switches
-      // between them inside the running session. Spelled out here, since there's no other UI for it.
-      const modelName = (id: string): string => preset.models[id]?.name ?? id;
-      containerEl.createEl("p", {
-        cls: "setting-item-description",
-        text: `${preset.name} model tiers — switch with /model inside the running session:`,
-      });
-      const tierTable = containerEl.createEl("table", { cls: "cw-backend-tiers" });
-      const tierHeader = tierTable.createEl("tr");
-      tierHeader.createEl("th", { text: "Tier" });
-      tierHeader.createEl("th", { text: `${preset.name} model` });
-      const tierRows: [string, string][] = [
-        ["Start", modelName(preset.defaultStartupModel)],
-        ["sonnet", modelName(preset.defaultModel)],
-        ["opus", modelName(preset.defaultOpusModel)],
-        ["haiku", modelName(preset.defaultHaikuModel)],
-        ["fable", modelName(preset.defaultFableModel)],
-      ];
-      for (const [tier, model] of tierRows) {
-        const tr = tierTable.createEl("tr");
-        tr.createEl("td", { text: tier });
-        tr.createEl("td", { text: model });
-      }
-    }
-    const backends = profiles.filter((p) => p.backend);
-
-    new Setting(containerEl)
-      .setName("Launch Claude")
-      .setDesc("Open a terminal in this vault folder and start the Claude Code CLI.")
-      .addButton((b) =>
-        b
-          .setCta()
-          .setButtonText("▶ Launch Claude in this vault")
-          .onClick(() => {
-            void this.plugin.launchProfile();
-          }),
-      );
-
-    // A launch button per configured backend, next to the Claude one.
-    for (const backend of backends) {
-      new Setting(containerEl)
-        .setName(`Launch ${backend.name}`)
-        .setDesc("Open a terminal in this vault folder and start Claude Code on this backend.")
-        .addButton((b) =>
-          b
-            .setCta()
-            .setButtonText(`▶ Launch ${backend.name} in this vault`)
-            .onClick(() => {
-              void this.plugin.launchProfile(backend);
-            }),
-        );
-    }
-
-    const support = containerEl.createDiv({ cls: "cw-support" });
-
-    new Setting(support).setName("Support").setHeading();
-    support.createEl("p", {
-      cls: "setting-item-description",
-      text:
-        "Code Workbench is free. If it's useful to you, you can support it at a fraction of your " +
-        "Claude subscription.",
-    });
-
-    const donate = support.createEl("details", { cls: "cw-donate" });
-    donate.createEl("summary", { text: "♥ Support with crypto" });
-    donate.createEl("p", {
-      cls: "setting-item-description",
-      text: "If it helps your work, you can support the coffee and tools behind it.",
-    });
-    const coin = (label: string, qrKey: string): void => {
-      const row = donate.createDiv({ cls: "cw-coin" });
-      row.createDiv({ cls: "cw-coin-label", text: label });
-      const img = row.createEl("img", { cls: "cw-coin-qr", attr: { alt: `${label} QR` } });
-      pendingShots.push([img, qrKey]);
-    };
-    coin("EVM — USDT / USDC / ETH (Polygon, Base, BSC, Arbitrum)", "QR_EVM");
-    coin("USDT — TRON / TRC20", "QR_TRON");
-    coin("Bitcoin", "QR_BTC");
-
-    new Setting(support)
-      .setName("Star on GitHub")
-      .setDesc("A star improves karma :)")
-      .addButton((b) =>
-        b.setButtonText("★ Star on GitHub").onClick(() => {
-          openExternal("https://github.com/vitaly-andr/obsidian-code-workbench");
-        }),
-      );
-
-    new Setting(support)
-      .setName("Changelog")
-      .setDesc(`What changed in each release. Current version ${this.plugin.manifest.version}.`)
-      .addButton((b) =>
-        b.setButtonText("View changelog").onClick(() => {
-          openExternal("https://github.com/vitaly-andr/obsidian-code-workbench/blob/main/CHANGELOG.md");
-        }),
-      );
-
-    new Setting(support).setName("Sponsorship").setHeading();
-    support.createEl("p", {
-      cls: "setting-item-description",
-      text:
-        "No sponsors yet. To sponsor development or place your logo here, reach me on Telegram " +
-        "(@VITALY_ANDR) or by email (vitaly@andrianoff.online).",
-    });
-
-    new Setting(support)
-      .setName("Contact")
-      .setDesc("Questions, feedback, or sponsorship.")
-      .addButton((b) =>
-        b.setButtonText("Telegram @VITALY_ANDR").onClick(() => {
-          openExternal("https://t.me/VITALY_ANDR");
-        }),
-      )
-      .addButton((b) =>
-        b.setButtonText("Email").onClick(() => {
-          openExternal("mailto:vitaly@andrianoff.online");
-        }),
-      );
-
-    const qr = support.createDiv({ cls: "cw-qr" });
-    const link = qr.createEl("a", { href: "https://t.me/VITALY_ANDR" });
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      openExternal("https://t.me/VITALY_ANDR");
-    });
-    const qrImg = link.createEl("img", { cls: "cw-qr-img", attr: { alt: "Telegram @VITALY_ANDR" } });
-
-    containerEl.createEl("p", {
-      cls: "setting-item-description cw-license",
-      text:
-        "Source-available under the PolyForm Shield License 1.0.0: free to use, study, and modify, " +
-        "but not to build a competing product.",
-    });
-
-    // Fill the screenshot/QR images now that the settings tab is open (qr.ts is ~0.5MB, kept off
-    // the onload path).
-    void import("./src/util/qr").then((qr) => {
-      const assets = qr as unknown as Record<string, string>;
-      for (const [img, key] of pendingShots) img.src = assets[key];
-      qrImg.src = assets.TELEGRAM_QR;
-    });
   }
 }

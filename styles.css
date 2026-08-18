@@ -308,11 +308,20 @@
 }
 /* Larger, more readable promo copy than Obsidian's default tiny description text. */
 .cw-settings > .setting-item-description,
+.cw-settings .cw-block .setting-item-description,
 .cw-support .setting-item-description,
 .cw-settings ul,
 .cw-settings ol {
   font-size: var(--font-ui-medium);
   line-height: 1.5;
+}
+/* A setting definition that carries free-form content — copy, a screenshot, a table — owns its
+   whole row. Obsidian still wraps it in a control row, so drop that chrome and let it read as
+   page content. */
+.cw-settings .cw-block {
+  display: block;
+  padding: 0;
+  border: 0;
 }
 /* Highlight the support + sponsorship block with an accent card. */
 .cw-support {

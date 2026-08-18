@@ -286,7 +286,7 @@ export function makeRubyPlugin(parse: (src: string) => PrismParseResult): Plugin
     printers: {
       [AST_FORMAT]: printer as unknown as Printer,
     },
-  } as Plugin;
+  };
 }
 
 // Reach the per-format state: it lives on the AST root. Prettier also gives us the root via

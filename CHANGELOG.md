@@ -4,6 +4,30 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.11.0] - 2026-08-18
+
+### Added
+- The plugin's settings are searchable. Obsidian 1.13 builds its settings search index from the
+  definitions a tab declares, so an imperatively drawn tab contributes only its own name — until
+  now, none of this plugin's forty settings could be found that way. Type `blame`, `dotfiles`,
+  `material icons`, `pyright`, `intellisense`, `prettier` or `lsp` into the search box at the top
+  of Settings and you land on the row that does it. Each row also carries the words you might
+  bring from another editor, which are matched but never shown.
+- A **Commands and panels** section for three things that were never settings and so could not be
+  found from Settings at all: **Format code file**, **Git graph** and the **Keep/Reject diff**.
+
+### Changed
+- **Editor language intelligence** is now called **Language server (LSP)** — the name the rest of
+  the world uses, and the one people search for.
+- The settings tab is declared as data rather than drawn by hand. Obsidian 1.13 and later render
+  it from that declaration; older versions keep the previous drawing path, which reads the same
+  declaration, so the two cannot drift apart. The minimum Obsidian version is unchanged.
+- The **Connection** row reports the live server status again on 1.13, where the tab is rendered
+  from a declaration built at load time rather than when Settings opens.
+- The store description had not kept up with the plugin: it still described version 1.x and never
+  mentioned language servers, so searching the plugin directory for "lsp" or "completion" did not
+  find Code Workbench.
+
 ## [4.10.2] - 2026-08-09
 
 ### Fixed

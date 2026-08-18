@@ -650,10 +650,83 @@ declare module "obsidian" {
     onChange(callback: (value: number) => unknown): this;
   }
 
+  // Declarative settings (@since 1.13.0). A tab returns its rows as data so Obsidian can render
+  // them and index them for settings search. `src/settings/types.ts` models the subset this
+  // plugin uses; these are the shapes that subset has to fit through.
+
+  export interface SettingDefinitionBase {
+    name: string;
+    desc?: string | DocumentFragment;
+    /** Search-only synonyms; never rendered. */
+    aliases?: string[];
+    searchable?: boolean | (() => boolean);
+    visible?: boolean | (() => boolean);
+  }
+
+  export interface SettingControlBase<V> {
+    /** Passed to getControlValue/setControlValue on the tab. */
+    key: string;
+    defaultValue?: V;
+    validate?: (value: V) => string | void | Promise<string | void>;
+    disabled?: boolean | (() => boolean);
+  }
+
+  export interface SettingToggleControl extends SettingControlBase<boolean> {
+    type: "toggle";
+  }
+
+  export interface SettingDefinitionControl extends SettingDefinitionBase {
+    control: SettingToggleControl;
+    action?: never;
+    render?: never;
+  }
+
+  export interface SettingDefinitionRender extends SettingDefinitionBase {
+    // Obsidian also passes the enclosing SettingGroup, which this plugin does not use.
+    render: (setting: Setting) => void | (() => void);
+    control?: never;
+    action?: never;
+  }
+
+  export interface SettingDefinitionAction extends SettingDefinitionBase {
+    action: (el: HTMLElement, index: number) => void;
+    disabled?: boolean | (() => boolean);
+    control?: never;
+    render?: never;
+  }
+
+  export interface SettingDefinitionEmpty extends SettingDefinitionBase {
+    control?: never;
+    render?: never;
+    action?: never;
+  }
+
+  export type SettingDefinition =
+    | SettingDefinitionControl
+    | SettingDefinitionRender
+    | SettingDefinitionAction
+    | SettingDefinitionEmpty;
+
+  export interface SettingDefinitionGroup {
+    type: "group" | "list";
+    heading?: string;
+    cls?: string;
+    items?: SettingDefinition[];
+    visible?: boolean | (() => boolean);
+  }
+
+  export type SettingDefinitionItem = SettingDefinition | SettingDefinitionGroup;
+
   export abstract class PluginSettingTab {
     app: App;
     containerEl: HTMLElement;
     constructor(app: App, plugin: Plugin);
+    /** @since 1.13.0 — a non-empty return replaces display(). */
+    getSettingDefinitions(): SettingDefinitionItem[];
+    /** @since 1.13.0 — rebuilds the definitions and repaints the open tab. */
+    update(): void;
+    getControlValue(key: string): unknown;
+    setControlValue(key: string, value: unknown): void | Promise<void>;
     display(): void;
     hide(): void;
   }

@@ -45,7 +45,9 @@ const obsidian = {
   Modal: class { constructor(app) { this.app = app; } },
   SuggestModal: class { constructor(app) { this.app = app; } },
   FuzzySuggestModal: class { constructor(app) { this.app = app; } },
-  PluginSettingTab: class { constructor(app, plugin) { this.app = app; this.plugin = plugin; } },
+  // Obsidian's own SettingTab creates containerEl in its constructor, and the tab decorates it
+  // there — before any render, because 1.13 renders from the definitions and never calls display().
+  PluginSettingTab: class { constructor(app, plugin) { this.app = app; this.plugin = plugin; this.containerEl = statusBarItem(); } },
   Setting: class { constructor(containerEl) { this.containerEl = containerEl; } },
   Menu: class {},
   TFile: class {},
