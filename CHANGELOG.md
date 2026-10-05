@@ -4,6 +4,13 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.11.2] - 2026-10-05
+
+### Fixed
+- `package-lock.json` matches `package.json` again, so a clean install from the release source
+  works. The build tooling's `moment` is pinned to 2.31.0, outside a published advisory range; the
+  plugin itself uses the copy Obsidian ships and its bundle is unchanged.
+
 ## [4.11.1] - 2026-10-05
 
 ### Changed
