@@ -4,6 +4,19 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.11.1] - 2026-10-05
+
+### Changed
+- The GLM backend runs on GLM-5.3. Every tier uses GLM-5.3-Flash, which costs about a third of
+  the plan quota, except `fable`, which gets the full GLM-5.3 for the hardest tasks. Z.ai had
+  already been routing the old `glm-5.2` and `glm-4.7` ids to these models; now the session shows
+  the models it actually talks to. A GLM backend you set up earlier moves to the new mapping on
+  the next Obsidian start, and your API key stays where it is.
+
+### Fixed
+- A GLM session compacted its context at 200K tokens, because Claude Code doesn't know GLM model
+  ids and assumes that size. The wrapper script now declares the 1M window GLM actually has.
+
 ## [4.11.0] - 2026-08-18
 
 ### Added

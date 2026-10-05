@@ -78,7 +78,7 @@ export const INTRO_PARAGRAPHS: readonly string[] = [
   "One click in the status bar opens a terminal in your vault with the Claude Code CLI already " +
     "connected, no /ide. Because it drives the CLI you already run, it uses your Claude subscription " +
     "instead of a metered API key, so letting Claude work across a whole vault doesn't run up an API " +
-    "bill. It works with other Claude Code compatible models too, like Kimi K2 or DeepSeek.",
+    "bill. It works with other Claude Code compatible models too, like Kimi, GLM or DeepSeek.",
   "Turn on the vault tools and Claude reads and edits notes through Obsidian's own link graph " +
     "(backlinks, wikilinks, frontmatter) and makes link-preserving changes, filing new notes where " +
     "they belong and holding your PARA or Zettelkasten system together without breaking links. Every " +
@@ -109,7 +109,7 @@ export const FEATURES: ReadonlyArray<readonly [string, string]> = [
   [
     "Works with any model",
     "it speaks the Claude Code CLI protocol rather than a model API, so it runs with Claude, " +
-      "Kimi K2, or any Anthropic-compatible endpoint you use through the CLI.",
+      "Kimi, GLM, or any Anthropic-compatible endpoint you use through the CLI.",
   ],
   [
     "Launch Claude in one click",

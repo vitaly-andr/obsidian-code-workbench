@@ -88,12 +88,12 @@ export const BACKEND_PRESETS: Record<string, BackendPreset> = {
       },
     },
   },
-  // GLM Coding Plan (Z.ai). Endpoint, key page and tier mapping verified against the Z.ai docs
-  // (docs.z.ai/devpack/tool/claude + /devpack/overview) 2026-08-07: the subscription key works on
-  // the Anthropic-protocol endpoint, and Z.ai's own Claude Code setup maps haiku to glm-4.7 with
-  // sonnet and opus on glm-5.2 — kept as-is here. glm-5-turbo is in the plan too but stays out of
-  // the mapping; it would only displace glm-5.2 on a tier. Context/output sizes from the model
-  // pages (docs.z.ai/guides/llm/glm-5.2, /glm-4.7).
+  // GLM Coding Plan (Z.ai). Endpoint, key page and models verified against the Z.ai docs
+  // (docs.z.ai/devpack/tool/claude + /devpack/overview) 2026-10-05: the plan serves glm-5.3 and
+  // glm-5.3-flash, and routes the older glm-5.2/glm-4.7 ids to them. Flash costs about a third of
+  // the plan quota, so it takes every tier except fable, which gets the full glm-5.3 for the
+  // hardest tasks. Both have a 1M window and 128K output (docs.z.ai/guides/llm/glm-5.3,
+  // /guides/vlm/glm-5.3-flash).
   glm: {
     id: "glm",
     name: "GLM",
@@ -101,15 +101,14 @@ export const BACKEND_PRESETS: Record<string, BackendPreset> = {
     consoleUrl: "https://z.ai/manage-apikey/apikey-list",
     consoleName: "Z.ai API keys page",
     tagline: "Run Claude Code on your GLM Coding Plan subscription — paste the API key, no script to write.",
-    // Z.ai documents no Fable tier; it gets glm-5.2 as well, so `/model fable` has a target.
-    defaultStartupModel: "glm-5.2",
-    defaultModel: "glm-5.2",
-    defaultFableModel: "glm-5.2",
-    defaultOpusModel: "glm-5.2",
-    defaultHaikuModel: "glm-4.7",
+    defaultStartupModel: "glm-5.3-flash",
+    defaultModel: "glm-5.3-flash",
+    defaultFableModel: "glm-5.3",
+    defaultOpusModel: "glm-5.3-flash",
+    defaultHaikuModel: "glm-5.3-flash",
     models: {
-      "glm-5.2": { name: "GLM-5.2 (1M context)", contextTokens: 1_000_000, outputTokens: 128_000 },
-      "glm-4.7": { name: "GLM-4.7 (200K context)", contextTokens: 200_000, outputTokens: 128_000 },
+      "glm-5.3": { name: "GLM-5.3 (1M context)", contextTokens: 1_000_000, outputTokens: 128_000 },
+      "glm-5.3-flash": { name: "GLM-5.3-Flash (1M context)", contextTokens: 1_000_000, outputTokens: 128_000 },
     },
   },
 };
@@ -118,17 +117,42 @@ export const BACKEND_PRESETS: Record<string, BackendPreset> = {
 // from the preset's own defaults — there is no settings UI to override them (switch tiers with
 // `/model fable|opus|sonnet|haiku` inside the running session instead).
 export function seedBackendConfig(preset: BackendPreset): BackendConfig {
-  return {
-    name: preset.name,
-    baseUrl: preset.baseUrl,
-    authToken: "",
-    startupModel: preset.defaultStartupModel,
-    model: preset.defaultModel,
-    fableModel: preset.defaultFableModel,
-    opusModel: preset.defaultOpusModel,
-    haikuModel: preset.defaultHaikuModel,
-    models: preset.models,
-  };
+  return applyPreset({ name: preset.name, authToken: "" } as BackendConfig, preset);
+}
+
+// Bring a stored config in line with its preset: endpoint, model list and every tier. The preset
+// is the only source of tier models (there is no UI to change them), so a config written by an
+// older release picks up a new mapping on the next load instead of keeping retired ids forever.
+// Name and key are left alone.
+export function applyPreset(config: BackendConfig, preset: BackendPreset): BackendConfig {
+  config.baseUrl = preset.baseUrl;
+  config.startupModel = preset.defaultStartupModel;
+  config.model = preset.defaultModel;
+  config.fableModel = preset.defaultFableModel;
+  config.opusModel = preset.defaultOpusModel;
+  config.haikuModel = preset.defaultHaikuModel;
+  config.models = preset.models;
+  return config;
+}
+
+// The context window to declare for the whole session, or null when there is no single honest
+// value. Claude Code sizes a model id it doesn't recognize at 200K unless the id carries `[1m]`;
+// CLAUDE_CODE_MAX_CONTEXT_TOKENS corrects that, but it is one number per session. So it is only
+// set when every tier runs a model of the same known size, and never for a `[1m]` id, where
+// Claude Code already assumes 1M and ignores the variable.
+export function sessionContextTokens(config: BackendConfig): number | null {
+  const tiers = [
+    config.startupModel,
+    config.model,
+    config.fableModel ?? config.model,
+    config.opusModel ?? config.model,
+    config.haikuModel ?? config.model,
+  ];
+  if (tiers.some((id) => id.toLowerCase().includes("[1m]"))) return null;
+  const sizes = new Set(tiers.map((id) => config.models[id]?.contextTokens));
+  if (sizes.size !== 1) return null;
+  const [size] = sizes;
+  return typeof size === "number" ? size : null;
 }
 
 function shQuote(value: string): string {
@@ -158,12 +182,10 @@ export function generateBackendScript(config: BackendConfig): string {
     'export CLAUDE_CODE_SUBAGENT_MODEL="$ANTHROPIC_MODEL"',
     "export ENABLE_TOOL_SEARCH=false",
   ];
-  // No CLAUDE_CODE_AUTO_COMPACT_WINDOW override: it is one value for the whole session, so it
-  // can't fit a mix of 256K and 1M tiers, and Claude Code's own `[1m]`-suffix parsing (see
-  // model-config docs, "Pin models for third-party deployments") is meant to size each tier from
-  // its own ANTHROPIC_DEFAULT_*_MODEL value instead — fable's `k3[1m]` already carries that
-  // signal, opus/sonnet/haiku don't. (CLAUDE_CODE_MAX_CONTEXT_TOKENS, set here before, isn't a
-  // real Claude Code variable — removed.)
+  // A mixed preset (Kimi: 256K tiers plus fable's `k3[1m]`) gets no override and relies on the
+  // `[1m]` suffix; a single-size preset (GLM: 1M everywhere) declares its window outright.
+  const contextTokens = sessionContextTokens(config);
+  if (contextTokens !== null) lines.push(`export CLAUDE_CODE_MAX_CONTEXT_TOKENS=${contextTokens}`);
   lines.push('exec claude "$@"');
   return lines.join("\n") + "\n";
 }

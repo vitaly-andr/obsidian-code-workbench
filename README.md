@@ -37,7 +37,7 @@
     project, not just the open file, and jump straight to it.
   - The same diagnostics reach Claude, for an edit → verify → fix loop.
 - **Accept or reject Claude's edits.** A proposed change opens as a side-by-side diff. Keep it or reject it, and edit the proposed side first if you want. Nothing is written until you keep it.
-- **Works with any model.** It speaks the Claude Code CLI protocol, not a model API, so it runs with Claude, Kimi K2, DeepSeek, GLM, or any Anthropic-compatible endpoint you use through the CLI.
+- **Works with any model.** It speaks the Claude Code CLI protocol, not a model API, so it runs with Claude, Kimi, GLM, DeepSeek, or any Anthropic-compatible endpoint you use through the CLI.
 - **Launch Claude in one click.** Start the CLI in your vault from the status bar or settings; it opens your terminal in the right folder. Launch profiles run the same CLI on a Kimi or GLM subscription instead: paste an API key and the plugin writes the wrapper script — see [Launch profiles](#launch-profiles).
 - **Vault tools for Claude.** Turn it on to let Claude read and maintain the vault through model-callable tools (backlinks, search, frontmatter, link-preserving rename, trash delete), with every write shown for your approval. See [Vault tools for Claude](#vault-tools-for-claude).
 
@@ -189,11 +189,11 @@ friends keep working inside the session. Settings shows the mapping per backend:
 
 | Tier | Kimi | GLM |
 |---|---|---|
-| Start | Kimi for Coding (K2.7) | GLM-5.2 (1M context) |
-| `sonnet` | Kimi for Coding (K2.7 HighSpeed) | GLM-5.2 (1M context) |
-| `opus` | Kimi K3 (256K context) | GLM-5.2 (1M context) |
-| `haiku` | Kimi for Coding (K2.7) | GLM-4.7 (200K context) |
-| `fable` | Kimi K3 (1M context) | GLM-5.2 (1M context) |
+| Start | Kimi for Coding (K2.7) | GLM-5.3-Flash (1M context) |
+| `sonnet` | Kimi for Coding (K2.7 HighSpeed) | GLM-5.3-Flash (1M context) |
+| `opus` | Kimi K3 (256K context) | GLM-5.3-Flash (1M context) |
+| `haiku` | Kimi for Coding (K2.7) | GLM-5.3-Flash (1M context) |
+| `fable` | Kimi K3 (1M context) | GLM-5.3 (1M context) |
 
 The API key is stored in a private `0600` file in the plugin's data folder, next to the generated
 script — never in the plugin's synced settings, so it is not carried by Obsidian Sync or a vault

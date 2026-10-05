@@ -15,7 +15,7 @@ import { error, info, warn } from "./src/util/log";
 import { launchCommand } from "./src/util/launch";
 import { CLAUDE_PROFILE, normalizeLaunchProfiles } from "./src/util/launch-profiles";
 import type { LaunchProfile } from "./src/util/launch-profiles";
-import { AgentBackends, BACKEND_PRESETS, seedBackendConfig } from "./src/util/agent-backends";
+import { AgentBackends, applyPreset, BACKEND_PRESETS, seedBackendConfig } from "./src/util/agent-backends";
 import { DEMO_FILES } from "./src/util/demo-files";
 import { CODE_VIEW_EXTENSIONS, CodeView } from "./src/views/code-view";
 import { blameAnnotation, setBlame } from "./src/views/blame-annotation";
@@ -142,8 +142,9 @@ export default class CodeWorkbenchPlugin extends Plugin {
     this.settings.defaultLaunchProfile = launchState.defaultId;
 
     // Managed backends: the wrapper scripts live in the plugin data folder. Regenerate them on
-    // load from each backend's stored JSON so a template change (or lost script) is repaired and
-    // the API key survives restarts without ever entering data.json.
+    // load from each backend's stored JSON, re-applying its preset, so a template or model
+    // mapping change (or a lost script) is repaired and the API key survives restarts without
+    // ever entering data.json.
     const backendsRoot = vaultBasePath(this.app);
     if (backendsRoot) {
       this.backends = new AgentBackends(
@@ -152,7 +153,13 @@ export default class CodeWorkbenchPlugin extends Plugin {
       for (const p of this.settings.launchProfiles) {
         if (!p.backend) continue;
         const cfg = await this.backends.readConfig(p.id);
-        if (cfg) await this.backends.write(p.id, cfg).catch(() => undefined);
+        const preset = BACKEND_PRESETS[p.backend.presetId];
+        if (!cfg) continue;
+        if (preset) {
+          applyPreset(cfg, preset);
+          p.backend.model = preset.defaultModel;
+        }
+        await this.backends.write(p.id, cfg).catch(() => undefined);
       }
     }
 
@@ -1111,16 +1118,14 @@ export default class CodeWorkbenchPlugin extends Plugin {
   }
 
   // Persist a managed profile's backend into its 0600 JSON + 0700 script. The key (when given)
-  // and the chosen model live in the JSON only — never in data.json. Called on key/model change.
+  // lives in the JSON only — never in data.json; the models always come from the preset.
+  // Called on key change.
   async syncBackend(profile: LaunchProfile, newKey?: string): Promise<void> {
     if (!profile.backend || !this.backends) return;
     const preset = BACKEND_PRESETS[profile.backend.presetId];
     if (!preset) return;
-    const cfg = (await this.backends.readConfig(profile.id)) ?? seedBackendConfig(preset);
+    const cfg = applyPreset((await this.backends.readConfig(profile.id)) ?? seedBackendConfig(preset), preset);
     cfg.name = profile.name || preset.name;
-    cfg.model = profile.backend.model;
-    cfg.models = preset.models;
-    cfg.baseUrl = preset.baseUrl;
     if (newKey !== undefined) cfg.authToken = newKey;
     await this.backends.write(profile.id, cfg);
   }
