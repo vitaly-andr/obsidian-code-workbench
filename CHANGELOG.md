@@ -4,6 +4,13 @@ All notable changes to Code Workbench are documented here. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org/).
 
+## [4.11.3] - 2026-10-05
+
+### Fixed
+- A clean install from the release source failed on npm 10 and older: the lockfile was missing
+  two optional peer packages (`@emnapi/core`, `@emnapi/runtime`) that npm 11 doesn't record.
+  The lockfile now installs cleanly on npm 9, 10 and 11. Nothing in the plugin itself changed.
+
 ## [4.11.2] - 2026-10-05
 
 ### Fixed
