@@ -77,6 +77,9 @@ export function languageExtension(ext: string): Extension | null {
     case "m": case "mm": return legacy(objectiveC);
     case "php": return php();
     case "sql": return sql();
+    // abap has no bundled CodeMirror mode; it falls through to the plaintext base here and gets its
+    // rich colours from the self-built tree-sitter grammar (registry.ts) once that is published.
+    case "abap": return null;
     case "xml": case "xsd": case "xsl": case "svg": case "plist": return xml();
     case "md": case "markdown": return markdown();
     case "yaml": case "yml": return yaml();
@@ -171,7 +174,7 @@ export const CODE_VIEW_EXTENSIONS = [
   "js", "mjs", "cjs", "jsx", "ts", "tsx", "py", "pyw", "pyi", "rs",
   "json", "jsonc", "json5", "jsonl", "ndjson", "html", "htm", "xhtml", "css", "scss", "sass", "less",
   "c", "h", "cpp", "cc", "cxx", "hpp", "hh", "hxx", "go", "java", "kt", "kts",
-  "scala", "sc", "cs", "dart", "m", "mm", "php", "sql", "xml", "xsd", "xsl", "plist",
+  "scala", "sc", "cs", "dart", "m", "mm", "php", "sql", "abap", "xml", "xsd", "xsl", "plist",
   "yaml", "yml", "vue", "liquid", "wat", "wast", "sh", "bash", "zsh", "ksh",
   "rb", "gemspec", "lua", "pl", "pm", "toml", "ini", "conf", "cfg", "properties",
   "swift", "r", "jl", "hs", "clj", "cljs", "cljc", "edn", "diff", "patch",

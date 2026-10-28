@@ -352,7 +352,7 @@ export class CodeView extends TextFileView implements SelectionProvider {
     }
     const layer: Extension = highlights
       ? treeSitterExtensions(grammar)
-      : [languageExtension(ext) ?? [], treeSitterExtensions({ parser: grammar.parser, query: null })];
+      : [languageExtension(ext) ?? [], treeSitterExtensions({ parser: grammar.parser, query: null, diagnostics: grammar.diagnostics })];
     view.dispatch({ effects: this.langLayer.reconfigure(layer) });
   }
 

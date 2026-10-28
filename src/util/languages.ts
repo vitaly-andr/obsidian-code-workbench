@@ -17,6 +17,7 @@ const EXT_TO_LANGUAGE: Record<string, string> = {
   go: "go", java: "java", kt: "kotlin", kts: "kotlin", scala: "scala", sc: "scala",
   cs: "csharp", dart: "dart", m: "objective-c", mm: "objective-cpp",
   php: "php", sql: "sql",
+  abap: "abap",
   xml: "xml", xsd: "xml", xsl: "xml", svg: "xml", plist: "xml",
   yaml: "yaml", yml: "yaml", vue: "vue", liquid: "liquid", wat: "wat", wast: "wat",
   sh: "shellscript", bash: "shellscript", zsh: "shellscript", ksh: "shellscript",
@@ -66,6 +67,7 @@ const LSP_LANGUAGE_ID: Record<string, string> = {
   objc: "objective-c",
   bash: "shellscript",
   tsx: "typescriptreact",
+  abap: "abap",
 };
 
 // Map a canonical grammar id to the LSP languageId a server expects.

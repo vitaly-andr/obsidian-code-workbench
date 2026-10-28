@@ -73,10 +73,11 @@ Review what the AI committed without leaving Obsidian. The branch shows in the s
 
 ## Language support
 
-Highlighting for 52 languages, diagnostics for 48, formatting for 28. Each grammar and formatter downloads the first time you open that language, then stays cached.
+Highlighting for 53 languages, diagnostics for 48, formatting for 28. Each grammar and formatter downloads the first time you open that language, then stays cached.
 
 | Language | Highlighting | Diagnostics | Formatting |
 |---|:---:|:---:|:---:|
+| ABAP † | ✅ | — | — |
 | Astro | ✅ | ✅ | ✅ |
 | Blade | ✅ | ✅ | — |
 | C | ✅ | ✅ | ✅ |
@@ -129,6 +130,8 @@ Highlighting for 52 languages, diagnostics for 48, formatting for 28. Each gramm
 | XML | ✅ | ✅ | ✅ |
 | YAML | ✅ | ✅ | ✅ |
 | Zig | ✅ | ✅ | ✅ |
+
+† ABAP is **highlight-only**: syntax coloring, no diagnostics or formatting. The grammar is self-built from [mkoval1/tree-sitter-abap](https://github.com/mkoval1/tree-sitter-abap) — a small, permissive grammar that covers common ABAP (classes, methods, declarations, control flow, SELECT, keywords, comments, literals) but not every construct, so diagnostics are deliberately off to avoid flagging valid code the grammar can't yet parse. Highlighting uses a hand-maintained query covering the grammar's full keyword set plus types, strings, operators, and identifiers. No ABAP formatter is configured.
 
 A simple highlighter is always on. Turn on **Settings → Code Workbench → Enable syntax highlighting** for the richer tree-sitter highlighting and the diagnostics above.
 

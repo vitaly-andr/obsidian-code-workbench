@@ -5,7 +5,9 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { promises as fs } from "fs";
 import * as os from "os";
 import * as path from "path";
-import { languageIdForPath, lspEligibleForPath } from "../../src/util/languages";
+import { languageIdForPath, lspEligibleForPath, lspLanguageId } from "../../src/util/languages";
+import { grammarForExtension, grammarById } from "../../src/treesitter/registry";
+import { CODE_VIEW_EXTENSIONS } from "../../src/views/cm-theme";
 import { LockFile } from "../../src/server/lockfile";
 
 describe("languages (T032)", () => {
@@ -22,6 +24,28 @@ describe("languages (T032)", () => {
     expect(lspEligibleForPath("data.json")).toBe(true);
     expect(lspEligibleForPath("events.jsonl")).toBe(false);
     expect(lspEligibleForPath("stream.ndjson")).toBe(false);
+  });
+});
+
+describe("ABAP language routing", () => {
+  it("maps .abap to the abap language id and keeps it LSP-eligible", () => {
+    expect(languageIdForPath("zcl_demo.abap")).toBe("abap");
+    expect(lspEligibleForPath("zcl_demo.abap")).toBe(true);
+    expect(lspLanguageId("abap")).toBe("abap");
+  });
+
+  it("routes .abap to CodeView and the self-built tree-sitter grammar", () => {
+    expect(CODE_VIEW_EXTENSIONS).toContain("abap");
+
+    const src = grammarForExtension("abap");
+    expect(src).not.toBeNull();
+    expect(src?.id).toBe("abap");
+    // Self-built grammar: wasm + highlights published to the grammars-v1 release.
+    expect(src?.wasmUrl).toMatch(/grammars-v1\/tree-sitter-abap\.wasm$/);
+    expect(src?.highlightsUrl).toMatch(/grammars-v1\/tree-sitter-abap\.highlights\.scm$/);
+
+    // The canonical id resolves to the same source (used by injection pre-loading).
+    expect(grammarById("abap")).toBe(src);
   });
 });
 

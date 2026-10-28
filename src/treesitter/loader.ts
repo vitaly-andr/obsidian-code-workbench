@@ -17,6 +17,9 @@ export interface LoadedGrammar {
   query: Query | null;
   // Embedded-language regions (from injections.scm) with the grammars to colour them, pre-loaded.
   injections?: { query: Query; grammars: Map<string, LoadedGrammar> } | null;
+  // Whether to surface tree-sitter parse errors as diagnostics. Mirrors GrammarSource.diagnostics
+  // (default true); false for permissive/incomplete grammars that would flag valid source as errors.
+  diagnostics: boolean;
 }
 
 export class GrammarLoader {
@@ -100,7 +103,7 @@ export class GrammarLoader {
         warn(`tree-sitter: injections for "${src.id}" failed: ${String(e)}`);
       }
     }
-    return { parser, query, injections };
+    return { parser, query, injections, diagnostics: src.diagnostics !== false };
   }
 
   private async ensureDir(): Promise<void> {

@@ -28,6 +28,10 @@ export interface GrammarSource {
   // that mis-tags <style> as javascript; astro's has no plain <style>→css rule; embedded-template
   // ships no default injections.scm (only per-host variants). Otherwise embedded code stays uncoloured.
   injectionsScm?: string | null;
+  // Whether tree-sitter parse errors are surfaced as editor diagnostics (red underlines). Defaults
+  // to true. Set false for a permissive/incomplete grammar whose parser flags large amounts of valid
+  // source as errors — highlighting stays on, the noisy false-positive underlines are suppressed.
+  diagnostics?: boolean;
   // A stable key for the on-disk cache filename.
   id: string;
 }
@@ -35,6 +39,11 @@ export interface GrammarSource {
 const JSDELIVR = "https://cdn.jsdelivr.net/npm";
 // Self-built grammars are published as release assets on the plugin repo (tag `grammars-v1`).
 const SELF_HOST = "https://github.com/vitaly-andr/obsidian-code-workbench/releases/download/grammars-v1";
+// Fork override for the ABAP grammar: this user's build is published to the grammars-v1 release on
+// their fork (built by .github/workflows/build-abap-grammar.yml), not the upstream plugin release.
+// When this is upstreamed, publish tree-sitter-abap.wasm + tree-sitter-abap.highlights.scm on the
+// UPSTREAM grammars-v1 release and drop this override (restore `abap: self("abap", true)`).
+const ABAP_SELF_HOST = "https://github.com/sigurdn/obsidian-code-workbench-abap/releases/download/grammars-v1";
 
 function npm(id: string, pkg: string, ver: string, wasm: string, hl: string | null, baseHl?: string): GrammarSource {
   return {
@@ -183,6 +192,19 @@ const SOURCES: Record<string, GrammarSource> = {
   ruby: npm("ruby", "tree-sitter-ruby", "0.23.1", "/tree-sitter-ruby.wasm", HL),
   php: npm("php", "tree-sitter-php", "0.24.2", "/tree-sitter-php.wasm", HL),
   csharp: npm("csharp", "tree-sitter-c-sharp", "0.23.5", "/tree-sitter-c_sharp.wasm", HL),
+  // ABAP: self-built from mkoval1/tree-sitter-abap (a small, pre-generated grammar), verified to load
+  // under web-tree-sitter 0.26.9. Fork override (see ABAP_SELF_HOST above): wasm + highlights are
+  // hosted on the user's fork's grammars-v1 release, so this entry is built inline rather than via
+  // self(). The upstream PR should move the two assets onto the upstream grammars-v1 release and
+  // replace this with a self()-style entry.
+  // diagnostics: false — this grammar is simple and incomplete, so its parser flags large amounts of
+  // valid ABAP as errors. Highlighting stays on; the false-positive error underlines are suppressed.
+  abap: {
+    id: "abap",
+    wasmUrl: `${ABAP_SELF_HOST}/tree-sitter-abap.wasm`,
+    highlightsUrl: `${ABAP_SELF_HOST}/tree-sitter-abap.highlights.scm`,
+    diagnostics: false,
+  },
   scala: npm("scala", "tree-sitter-scala", "0.24.0", "/tree-sitter-scala.wasm", HL),
   haskell: npm("haskell", "tree-sitter-haskell", "0.23.1", "/tree-sitter-haskell.wasm", HL),
   julia: npm("julia", "tree-sitter-julia", "0.23.1", "/tree-sitter-julia.wasm", HL),
@@ -264,6 +286,7 @@ const EXT_TO_ID: Record<string, string> = {
   scala: "scala", sc: "scala",
   cs: "csharp", m: "objc", mm: "objc",
   php: "php", sql: "sql",
+  abap: "abap",
   xml: "xml", xsd: "xml", xsl: "xml", svg: "xml", plist: "xml",
   yaml: "yaml", yml: "yaml", vue: "vue", svelte: "svelte",
   erb: "erb", ejs: "ejs", etlua: "etlua",

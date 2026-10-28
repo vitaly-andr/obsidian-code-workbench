@@ -113,6 +113,10 @@ export function treeSitterExtensions(grammar: LoadedGrammar): Extension {
   const highlighter = ViewPlugin.define((view) => new TreeHighlighter(view, grammar), {
     decorations: (v) => v.decorations,
   });
+  // Highlight-only grammars (grammar.diagnostics === false) skip the linter/gutter entirely: a
+  // permissive, incomplete grammar flags too much valid source as errors to make the underlines
+  // useful. Highlighting still works because it does not depend on an error-free parse.
+  if (!grammar.diagnostics) return [highlighter];
   const diagnostics = linter(
     (view) => {
       const text = view.state.doc.toString();
